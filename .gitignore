@@ -6,6 +6,8 @@ dist/
 wheels/
 *.egg-info
 
+pyproject.toml
+.qodo
 # Virtual environments
 .venv
 # Byte-compiled / optimized / DLL files
@@ -211,3 +213,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+pyproject.toml
