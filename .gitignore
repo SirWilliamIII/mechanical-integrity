@@ -6,6 +6,9 @@ dist/
 wheels/
 *.egg-info
 
+CLAUDE.md
+.claude
+context.md
 pyproject.toml
 .qodo
 # Virtual environments
@@ -213,4 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-pyproject.toml
+
+# Project-specific
+uploads/
+reports/
+*.pt
+*.pth
+ml/models/*.pt
+ml/models/*.pth
+dump.rdb
+.claude/
