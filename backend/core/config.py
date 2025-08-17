@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     
+    @property
+    def APP_NAME(self) -> str:
+        """Alias for PROJECT_NAME to maintain backward compatibility."""
+        return self.PROJECT_NAME
+    
     # ============================================================================
     # SECURITY CONFIGURATION
     # ============================================================================
@@ -85,7 +90,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
-        extra="forbid",
+        extra="ignore",  # Changed from 'forbid' to 'ignore' to allow extra env vars
     )
     
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
