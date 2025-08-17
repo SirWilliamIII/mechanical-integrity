@@ -1,6 +1,6 @@
 """Inspection and measurement models"""
 from datetime import datetime
-from sqlalchemy import String, Float, Integer, ForeignKey, Text, JSON
+from sqlalchemy import String, Float, ForeignKey, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDMixin
 

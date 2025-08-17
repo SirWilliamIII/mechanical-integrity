@@ -1,42 +1,104 @@
-"""Equipment models"""
+"""
+Equipment models for mechanical integrity management.
+
+Defines equipment registry for petroleum industry assets with API 579 compliance data.
+All design specifications are critical for fitness-for-service calculations.
+"""
+from datetime import datetime
 from enum import Enum
-from sqlalchemy import String, Float, Integer, ForeignKey, Enum as SQLEnum
+from typing import TYPE_CHECKING, List
+
+from sqlalchemy import String, Float, DateTime, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.models.base import Base, TimestampMixin, UUIDMixin
+
+from models.base import Base, TimestampMixin, UUIDMixin
+
+if TYPE_CHECKING:
+    from models.inspection import Inspection
 
 
 class EquipmentType(str, Enum):
-    """Types of equipment per API standards"""
-    PRESSURE_VESSEL = "pressure_vessel"
-    STORAGE_TANK = "storage_tank"  
-    PIPING = "piping"
-    HEAT_EXCHANGER = "heat_exchanger"
+    """
+    Equipment types per API standards for mechanical integrity assessment.
+    
+    Each type has specific inspection and calculation requirements under API 579.
+    """
+    PRESSURE_VESSEL = "pressure_vessel"  # API 510 - Pressure vessels
+    STORAGE_TANK = "storage_tank"        # API 653 - Tank inspection
+    PIPING = "piping"                    # API 570 - Piping inspection
+    HEAT_EXCHANGER = "heat_exchanger"    # TEMA standards + API 579
 
 
 class Equipment(Base, UUIDMixin, TimestampMixin):
-    """Equipment master data"""
+    """
+    Equipment master data for mechanical integrity management.
+    
+    Stores critical design specifications required for API 579 fitness-for-service
+    calculations. All pressure, temperature, and thickness values are used in
+    safety-critical calculations and must be validated.
+    """
     __tablename__ = "equipment"
     
-    # Identification
-    tag_number: Mapped[str] = mapped_column(String(50), unique=True, index=True)
-    description: Mapped[str] = mapped_column(String(200))
-    equipment_type: Mapped[EquipmentType] = mapped_column(SQLEnum(EquipmentType))
+    # ========================================================================
+    # IDENTIFICATION FIELDS
+    # ========================================================================
+    tag_number: Mapped[str] = mapped_column(
+        String(50), 
+        unique=True, 
+        index=True,
+        comment="Unique equipment identifier (e.g., V-101, T-201)"
+    )
+    description: Mapped[str] = mapped_column(
+        String(200),
+        comment="Equipment description and service details"
+    )
+    equipment_type: Mapped[EquipmentType] = mapped_column(
+        SQLEnum(EquipmentType),
+        comment="Equipment classification per API standards"
+    )
     
-    # Design specifications (critical for API 579)
-    design_pressure: Mapped[float] = mapped_column(Float)  # PSI
-    design_temperature: Mapped[float] = mapped_column(Float)  # °F
-    design_thickness: Mapped[float] = mapped_column(Float)  # inches
-    material_spec: Mapped[str] = mapped_column(String(50))  # e.g., "SA-516-70"
+    # ========================================================================
+    # DESIGN SPECIFICATIONS - CRITICAL FOR API 579 CALCULATIONS
+    # ========================================================================
+    design_pressure: Mapped[float] = mapped_column(
+        Float,
+        comment="Design pressure in PSI - used for MAWP calculations"
+    )
+    design_temperature: Mapped[float] = mapped_column(
+        Float,
+        comment="Design temperature in °F - affects material properties"
+    )
+    design_thickness: Mapped[float] = mapped_column(
+        Float,
+        comment="Original design thickness in inches - baseline for remaining life"
+    )
+    material_specification: Mapped[str] = mapped_column(
+        String(50),
+        comment="Material specification (e.g., SA-516-70, SA-106-B)"
+    )
     
-    # Corrosion allowance
-    corrosion_allowance: Mapped[float] = mapped_column(Float, default=0.125)  # inches
+    # ========================================================================
+    # CORROSION AND SERVICE PARAMETERS
+    # ========================================================================
+    corrosion_allowance: Mapped[float] = mapped_column(
+        Float,
+        default=0.125,
+        comment="Design corrosion allowance in inches (typically 0.125)"
+    )
+    service_description: Mapped[str] = mapped_column(
+        String(100),
+        comment="Process service (e.g., Crude Oil, Steam, Cooling Water)"
+    )
+    installation_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        comment="Equipment installation date for age calculations"
+    )
     
-    # Service info
-    service: Mapped[str] = mapped_column(String(100))
-    installation_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    
-    # Relationships
-    inspections: Mapped[list["Inspection"]] = relationship(
+    # ========================================================================
+    # RELATIONSHIPS
+    # ========================================================================
+    inspections: Mapped[List["Inspection"]] = relationship(
         back_populates="equipment",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        lazy="select"
     )

@@ -2,7 +2,6 @@
 Unit tests for API 579 calculations.
 These tests ensure safety-critical calculations are accurate to specification.
 """
-import pytest
 from decimal import Decimal, ROUND_DOWN
 
 

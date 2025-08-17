@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Check if all required services are running"""
-import subprocess
 import asyncpg
 import redis
 import httpx

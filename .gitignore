@@ -1,11 +1,11 @@
 # Python-generated files
-__pycache__/
+__pycache__
 *.py[oc]
 build/
 dist/
 wheels/
 *.egg-info
-
+.env
 CLAUDE.md
 .claude
 context.md
@@ -17,6 +17,8 @@ pyproject.toml
 __pycache__/
 *.py[codz]
 *$py.class
+
+docs/
 
 # C extensions
 *.so
@@ -131,6 +133,13 @@ ipython_config.py
 #pdm.toml
 .pdm-python
 .pdm-build/
+CLAUDE.md
+CLAUDE_STATE.md
+.claude/
+context.md
+.qodo/
+.ruff_cache/
+
 
 # pixi
 #   Similar to Pipfile.lock, it is generally recommended to include pixi.lock in version control.
