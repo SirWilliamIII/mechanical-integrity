@@ -1,6 +1,4 @@
 """
-Application configuration using Pydantic Settings.
-
 Manages all environment variables and settings for the Mechanical Integrity AI system.
 All safety-critical parameters are defined here with appropriate defaults.
 """
@@ -42,8 +40,8 @@ class Settings(BaseSettings):
     # ============================================================================
     # DATABASE CONFIGURATION
     # ============================================================================
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "postgres"
+    POSTGRES_USER: str = "will"
+    POSTGRES_PASSWORD: str = "t00r"
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "mechanical_integrity"
