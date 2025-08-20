@@ -1,41 +1,139 @@
-# backend/app/models/database.py
-from sqlalchemy import Column, String, Float, DateTime, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
+"""
+Database configuration and session management for mechanical integrity system.
 
-Base = declarative_base()
+Provides PostgreSQL connection and SQLAlchemy session management with
+proper connection pooling for production deployment.
+"""
 
-class Equipment(Base):
-    __tablename__ = "equipment"
-    
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    equipment_type = Column(String)
-    location = Column(String)
-    material = Column(String)
-    design_pressure = Column(Float)
-    design_temperature = Column(Float)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    metadata = Column(JSON)
+import os
+from typing import Generator
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import QueuePool
 
-class InspectionRecord(Base):
-    __tablename__ = "inspection_records"
+from .base import Base
+
+# ========================================================================
+# DATABASE CONNECTION CONFIGURATION
+# ========================================================================
+
+# Get database URL from environment with fallback for development
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", 
+    "postgresql://will:t00r@localhost:5432/risk-assessment"
+)
+
+# Create engine with production-ready configuration
+engine = create_engine(
+    DATABASE_URL,
+    poolclass=QueuePool,
+    pool_size=10,                    # Number of connections to maintain
+    max_overflow=20,                 # Additional connections when needed
+    pool_pre_ping=True,              # Validate connections before use
+    pool_recycle=3600,               # Recycle connections after 1 hour
+    echo=os.getenv("SQL_DEBUG", "false").lower() == "true"  # SQL logging
+)
+
+# Configure session factory
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+
+# ========================================================================
+# SESSION MANAGEMENT
+# ========================================================================
+
+def get_db() -> Generator[Session, None, None]:
+    """
+    Database dependency for FastAPI.
     
-    id = Column(String, primary_key=True)
-    equipment_id = Column(String, ForeignKey("equipment.id"))
-    inspection_date = Column(DateTime)
-    thickness_readings = Column(JSON)  # Array of measurements
-    corrosion_rate = Column(Float)
-    remaining_life = Column(Float)
-    inspector_name = Column(String)
-    document_reference = Column(String)  # Link to analyzed document
+    Provides database sessions with automatic cleanup.
+    Used as a dependency in API endpoints.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def verify_db_connection() -> bool:
+    """
+    Verify database connection for health checks.
     
-class AnalysisResult(Base):
-    __tablename__ = "analysis_results"
+    Returns:
+        bool: True if connection successful, False otherwise
+    """
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return True
+    except Exception as e:
+        print(f"Database connection failed: {e}")
+        return False
+
+
+def create_tables():
+    """
+    Create all database tables.
     
-    id = Column(String, primary_key=True)
-    equipment_id = Column(String, ForeignKey("equipment.id"))
-    analysis_type = Column(String)  # "API_579", "RBI", etc.
-    result_data = Column(JSON)
-    recommendations = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    Should be called during application startup or via migration scripts.
+    In production, use Alembic migrations instead.
+    """
+    Base.metadata.create_all(bind=engine)
+
+
+def drop_tables():
+    """
+    Drop all database tables.
+    
+    WARNING: This will destroy all data!
+    Only use in development/testing environments.
+    """
+    Base.metadata.drop_all(bind=engine)
+
+
+# ========================================================================
+# DATABASE EVENT LISTENERS
+# ========================================================================
+
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    """
+    Set PostgreSQL-specific connection parameters.
+    
+    This function is called for each new database connection.
+    """
+    # For PostgreSQL, we can set timezone and other session parameters
+    with dbapi_connection.cursor() as cursor:
+        # Set timezone to UTC for consistent timestamp handling
+        cursor.execute("SET timezone TO 'UTC'")
+
+
+# ========================================================================
+# UTILITY FUNCTIONS
+# ========================================================================
+
+def get_db_info() -> dict:
+    """
+    Get database connection information for debugging.
+    
+    Returns:
+        dict: Database connection details (without sensitive info)
+    """
+    url_parts = str(engine.url).split('@')
+    if len(url_parts) > 1:
+        host_db = url_parts[1]
+    else:
+        host_db = "localhost/mechanical_integrity"
+    
+    return {
+        "database_type": engine.dialect.name,
+        "host_database": host_db,
+        "pool_size": engine.pool.size(),
+        "checked_out_connections": engine.pool.checkedout(),
+        "connection_count": engine.pool.size() - engine.pool.checkedin()
+    }

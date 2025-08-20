@@ -25,6 +25,11 @@ class Settings(BaseSettings):
         """Alias for PROJECT_NAME to maintain backward compatibility."""
         return self.PROJECT_NAME
     
+    @property
+    def APP_VERSION(self) -> str:
+        """Alias for API_VERSION to maintain backward compatibility."""
+        return self.API_VERSION
+    
     # ============================================================================
     # SECURITY CONFIGURATION
     # ============================================================================
@@ -44,7 +49,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = "t00r"
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432
-    POSTGRES_DB: str = "mechanical_integrity"
+    POSTGRES_DB: str = "risk-assessment"
     
     @property
     def database_url(self) -> str:

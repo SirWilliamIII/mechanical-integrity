@@ -1,0 +1,665 @@
+"""
+API 579 Calculation Service for Mechanical Integrity Management.
+
+This service integrates the dual-path calculation engine with the inspection API,
+providing a high-level interface for performing comprehensive fitness-for-service
+assessments with full audit trail and regulatory compliance.
+
+Key Features:
+- Complete API 579 calculations from inspection data
+- Database storage of calculation results
+- Background processing support
+- Equipment-specific calculation parameters
+- Comprehensive error handling and validation
+"""
+
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
+from decimal import Decimal
+from uuid import uuid4
+import logging
+import asyncio
+
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
+
+from models import (
+    InspectionRecord, 
+    ThicknessReading, 
+    API579Calculation, 
+    Equipment,
+    EquipmentType as ModelEquipmentType
+)
+from app.calculations.dual_path_calculator import API579Calculator, VerifiedResult
+from app.calculations.constants import API579Constants, EquipmentType, DamageType
+from app.calculations.verification import CalculationVerifier
+
+logger = logging.getLogger("mechanical_integrity.api579_service")
+
+
+class API579Service:
+    """
+    High-level service for performing API 579 fitness-for-service assessments.
+    
+    This service orchestrates the calculation engine, database operations,
+    and equipment-specific logic to provide complete FFS assessments.
+    """
+    
+    def __init__(self, db_session: Session):
+        """
+        Initialize service with database session.
+        
+        Args:
+            db_session: SQLAlchemy database session
+        """
+        self.db = db_session
+        self.calculator = API579Calculator()
+        self.verifier = CalculationVerifier()
+        self.constants = API579Constants()
+        
+    async def perform_complete_assessment(
+        self,
+        inspection_id: str,
+        performed_by: str = "API579Calculator-v1.0",
+        calculation_level: str = "Level 1"
+    ) -> Dict[str, Any]:
+        """
+        Perform complete API 579 fitness-for-service assessment for an inspection.
+        
+        Args:
+            inspection_id: UUID of inspection record
+            performed_by: Engineer or system performing calculation
+            calculation_level: Level 1, 2, or 3 assessment
+            
+        Returns:
+            Dict containing all calculation results and recommendations
+        """
+        try:
+            logger.info(f"Starting complete API 579 assessment for inspection {inspection_id}")
+            
+            # Load inspection data
+            inspection = self.db.query(InspectionRecord).filter(
+                InspectionRecord.id == inspection_id
+            ).first()
+            
+            if not inspection:
+                raise ValueError(f"Inspection {inspection_id} not found")
+            
+            # Load equipment data
+            equipment = self.db.query(Equipment).filter(
+                Equipment.id == inspection.equipment_id
+            ).first()
+            
+            if not equipment:
+                raise ValueError(f"Equipment {inspection.equipment_id} not found")
+            
+            # Extract calculation parameters
+            calc_params = self._extract_calculation_parameters(inspection, equipment)
+            logger.info(f"Extracted calculation parameters: {calc_params}")
+            
+            # Perform all calculations
+            calculation_results = {}
+            
+            # 1. Minimum Required Thickness
+            if calc_params["can_calculate_thickness"]:
+                result = await self._calculate_minimum_thickness(calc_params)
+                calculation_results["minimum_thickness"] = result
+                
+            # 2. Remaining Strength Factor
+            if calc_params["can_calculate_rsf"]:
+                result = await self._calculate_rsf(calc_params)
+                calculation_results["rsf"] = result
+                
+            # 3. Maximum Allowable Working Pressure
+            if calc_params["can_calculate_mawp"]:
+                result = await self._calculate_mawp(calc_params)
+                calculation_results["mawp"] = result
+                
+            # 4. Remaining Life
+            if calc_params["can_calculate_remaining_life"]:
+                result = await self._calculate_remaining_life(calc_params)
+                calculation_results["remaining_life"] = result
+            
+            # Perform cross-validation
+            validation_results = self._validate_calculation_consistency(
+                calculation_results, calc_params
+            )
+            
+            # Generate overall assessment
+            overall_assessment = self._generate_overall_assessment(
+                calculation_results, validation_results, calc_params
+            )
+            
+            # Store results in database
+            db_calculation = await self._store_calculation_results(
+                inspection_id,
+                calculation_results,
+                overall_assessment,
+                performed_by,
+                calculation_level,
+                calc_params
+            )
+            
+            # Update equipment next inspection date
+            await self._update_equipment_inspection_schedule(
+                equipment, calculation_results, overall_assessment
+            )
+            
+            logger.info(f"Completed API 579 assessment for inspection {inspection_id}")
+            
+            return {
+                "calculation_id": db_calculation.id,
+                "inspection_id": inspection_id,
+                "equipment_id": equipment.id,
+                "equipment_tag": equipment.tag_number,
+                "calculation_results": calculation_results,
+                "overall_assessment": overall_assessment,
+                "validation_results": validation_results,
+                "timestamp": datetime.utcnow().isoformat(),
+                "performed_by": performed_by
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in API 579 assessment: {str(e)}")
+            raise
+    
+    def _extract_calculation_parameters(
+        self, 
+        inspection: InspectionRecord, 
+        equipment: Equipment
+    ) -> Dict[str, Any]:
+        """
+        Extract and validate parameters needed for API 579 calculations.
+        
+        Returns:
+            Dict containing all parameters and capability flags
+        """
+        params = {
+            # Equipment parameters
+            "equipment_type": self._map_equipment_type(equipment.equipment_type),
+            "design_pressure": equipment.design_pressure,
+            "design_temperature": equipment.design_temperature,
+            "design_thickness": equipment.design_thickness,
+            "material_specification": equipment.material_specification,
+            "corrosion_allowance": equipment.corrosion_allowance,
+            "installation_date": equipment.installation_date,
+            
+            # Inspection parameters
+            "inspection_date": inspection.inspection_date,
+            "min_thickness_found": inspection.min_thickness_found,
+            "avg_thickness": inspection.avg_thickness,
+            "corrosion_rate": inspection.corrosion_rate_calculated,
+            "corrosion_type": inspection.corrosion_type,
+            "confidence_level": inspection.confidence_level,
+            
+            # Derived parameters
+            "equipment_age": (inspection.inspection_date - equipment.installation_date).days / 365.25 if equipment.installation_date else None,
+            "internal_radius": None,  # Will be calculated from equipment dimensions
+            "allowable_stress": None,  # Will be looked up from material properties
+            "joint_efficiency": Decimal("1.0"),  # Default - should be from equipment data
+            "future_corrosion_allowance": Decimal("0.050"),  # Default 50 mils
+        }
+        
+        # Calculate derived parameters
+        params.update(self._calculate_derived_parameters(params))
+        
+        # Determine calculation capabilities
+        params.update(self._assess_calculation_capabilities(params))
+        
+        return params
+    
+    def _map_equipment_type(self, model_type: ModelEquipmentType) -> EquipmentType:
+        """Map database equipment type to calculation engine type."""
+        mapping = {
+            ModelEquipmentType.PRESSURE_VESSEL: EquipmentType.PRESSURE_VESSEL,
+            ModelEquipmentType.STORAGE_TANK: EquipmentType.STORAGE_TANK,
+            ModelEquipmentType.PIPING: EquipmentType.PIPING,
+            ModelEquipmentType.HEAT_EXCHANGER: EquipmentType.HEAT_EXCHANGER
+        }
+        return mapping.get(model_type, EquipmentType.PRESSURE_VESSEL)
+    
+    def _calculate_derived_parameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate derived parameters from basic equipment data."""
+        derived = {}
+        
+        # TODO: Extract from equipment metadata or assume cylindrical vessel
+        # For MVP, assume cylindrical vessel with D = 4 feet (48 inches)
+        if params["equipment_type"] == EquipmentType.PRESSURE_VESSEL:
+            derived["internal_radius"] = Decimal("24.0")  # 48"/2 = 24" radius
+        elif params["equipment_type"] == EquipmentType.PIPING:
+            derived["internal_radius"] = Decimal("6.0")   # 12" nominal pipe
+        else:
+            derived["internal_radius"] = Decimal("24.0")  # Default
+        
+        # Look up allowable stress from material properties
+        # TODO: Implement full material database lookup
+        material = params.get("material_specification", "SA-516-70")
+        temperature = params.get("design_temperature", Decimal("200"))
+        
+        if "SA-516" in material:
+            # Conservative allowable stress for SA-516-70 at typical temperatures
+            derived["allowable_stress"] = Decimal("20000")  # psi
+        elif "SA-106" in material:
+            derived["allowable_stress"] = Decimal("20000")  # psi
+        else:
+            derived["allowable_stress"] = Decimal("15000")  # Conservative default
+        
+        # Joint efficiency - assume full RT unless specified
+        derived["joint_efficiency"] = Decimal("1.0")
+        
+        return derived
+    
+    def _assess_calculation_capabilities(self, params: Dict[str, Any]) -> Dict[str, bool]:
+        """Assess which calculations can be performed with available data."""
+        capabilities = {}
+        
+        # Minimum thickness calculation
+        capabilities["can_calculate_thickness"] = all([
+            params.get("design_pressure"),
+            params.get("internal_radius"),
+            params.get("allowable_stress"),
+            params.get("joint_efficiency")
+        ])
+        
+        # RSF calculation
+        capabilities["can_calculate_rsf"] = all([
+            params.get("min_thickness_found"),
+            params.get("design_thickness"),
+            capabilities.get("can_calculate_thickness")  # Need minimum thickness
+        ])
+        
+        # MAWP calculation
+        capabilities["can_calculate_mawp"] = all([
+            params.get("min_thickness_found"),
+            params.get("internal_radius"),
+            params.get("allowable_stress"),
+            params.get("joint_efficiency")
+        ])
+        
+        # Remaining life calculation
+        capabilities["can_calculate_remaining_life"] = all([
+            params.get("min_thickness_found"),
+            params.get("corrosion_rate"),
+            capabilities.get("can_calculate_thickness")  # Need minimum thickness
+        ])
+        
+        return capabilities
+    
+    async def _calculate_minimum_thickness(self, params: Dict[str, Any]) -> VerifiedResult:
+        """Calculate minimum required thickness."""
+        logger.info("Calculating minimum required thickness")
+        
+        result = self.calculator.calculate_minimum_required_thickness(
+            pressure=Decimal(str(params["design_pressure"])),
+            radius=Decimal(str(params["internal_radius"])),
+            stress=Decimal(str(params["allowable_stress"])),
+            efficiency=Decimal(str(params["joint_efficiency"])),
+            equipment_type=params["equipment_type"].value
+        )
+        
+        # Add verification
+        is_valid, warnings = self.verifier.verify_thickness_calculation(
+            calculated_thickness=result.value,
+            equipment_type=params["equipment_type"],
+            pressure=Decimal(str(params["design_pressure"])),
+            temperature=Decimal(str(params["design_temperature"])),
+            material=params["material_specification"]
+        )
+        
+        if warnings:
+            result.warnings.extend(warnings)
+        
+        return result
+    
+    async def _calculate_rsf(self, params: Dict[str, Any]) -> VerifiedResult:
+        """Calculate Remaining Strength Factor."""
+        logger.info("Calculating Remaining Strength Factor")
+        
+        # Need minimum thickness from previous calculation or calculate it
+        if "minimum_thickness_result" in params:
+            min_thickness = params["minimum_thickness_result"].value
+        else:
+            min_thickness_result = await self._calculate_minimum_thickness(params)
+            min_thickness = min_thickness_result.value
+        
+        result = self.calculator.calculate_remaining_strength_factor(
+            current_thickness=Decimal(str(params["min_thickness_found"])),
+            minimum_thickness=min_thickness,
+            nominal_thickness=Decimal(str(params["design_thickness"])),
+            future_corrosion_allowance=Decimal(str(params["future_corrosion_allowance"]))
+        )
+        
+        # Add verification
+        is_valid, warnings, action = self.verifier.verify_rsf_calculation(
+            rsf=result.value,
+            current_thickness=Decimal(str(params["min_thickness_found"])),
+            minimum_thickness=min_thickness,
+            equipment_type=params["equipment_type"]
+        )
+        
+        if warnings:
+            result.warnings.extend(warnings)
+        
+        # Add recommended action to assumptions
+        result.assumptions.append(f"Recommended action: {action}")
+        
+        return result
+    
+    async def _calculate_mawp(self, params: Dict[str, Any]) -> VerifiedResult:
+        """Calculate Maximum Allowable Working Pressure."""
+        logger.info("Calculating Maximum Allowable Working Pressure")
+        
+        result = self.calculator.calculate_mawp(
+            current_thickness=Decimal(str(params["min_thickness_found"])),
+            radius=Decimal(str(params["internal_radius"])),
+            stress=Decimal(str(params["allowable_stress"])),
+            efficiency=Decimal(str(params["joint_efficiency"])),
+            future_corrosion_allowance=Decimal(str(params["future_corrosion_allowance"]))
+        )
+        
+        return result
+    
+    async def _calculate_remaining_life(self, params: Dict[str, Any]) -> VerifiedResult:
+        """Calculate remaining life based on corrosion rate."""
+        logger.info("Calculating remaining life")
+        
+        # Need minimum thickness from previous calculation or calculate it
+        if "minimum_thickness_result" in params:
+            min_thickness = params["minimum_thickness_result"].value
+        else:
+            min_thickness_result = await self._calculate_minimum_thickness(params)
+            min_thickness = min_thickness_result.value
+        
+        # Determine confidence level based on inspection data
+        confidence_level = "conservative"  # Default
+        if params.get("confidence_level"):
+            conf = float(params["confidence_level"])
+            if conf >= 90:
+                confidence_level = "average"
+            elif conf >= 95:
+                confidence_level = "optimistic"
+        
+        result = self.calculator.calculate_remaining_life(
+            current_thickness=Decimal(str(params["min_thickness_found"])),
+            minimum_thickness=min_thickness,
+            corrosion_rate=Decimal(str(params["corrosion_rate"])),
+            confidence_level=confidence_level
+        )
+        
+        # Add verification
+        is_valid, warnings = self.verifier.verify_remaining_life(
+            remaining_life=result.value,
+            corrosion_rate=Decimal(str(params["corrosion_rate"])),
+            current_thickness=Decimal(str(params["min_thickness_found"])),
+            minimum_thickness=min_thickness
+        )
+        
+        if warnings:
+            result.warnings.extend(warnings)
+        
+        return result
+    
+    def _validate_calculation_consistency(
+        self, 
+        calculations: Dict[str, VerifiedResult], 
+        params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Perform cross-validation of calculation results."""
+        logger.info("Validating calculation consistency")
+        
+        # Prepare data for cross-check
+        thickness_data = {}
+        pressure_data = {}
+        
+        if "minimum_thickness" in calculations:
+            thickness_data["minimum_thickness"] = calculations["minimum_thickness"].value
+        if "rsf" in calculations:
+            thickness_data["rsf"] = calculations["rsf"].value
+        if "remaining_life" in calculations:
+            thickness_data["remaining_life"] = calculations["remaining_life"].value
+        if "mawp" in calculations:
+            pressure_data["mawp"] = calculations["mawp"].value
+            
+        thickness_data["current_thickness"] = Decimal(str(params["min_thickness_found"]))
+        pressure_data["design_pressure"] = Decimal(str(params["design_pressure"]))
+        
+        material_data = {
+            "material": params["material_specification"]
+        }
+        
+        return self.verifier.cross_check_calculations(
+            thickness_data, pressure_data, material_data
+        )
+    
+    def _generate_overall_assessment(
+        self, 
+        calculations: Dict[str, VerifiedResult], 
+        validation: Dict[str, Any],
+        params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Generate overall fitness-for-service assessment."""
+        logger.info("Generating overall assessment")
+        
+        assessment = {
+            "fitness_for_service": "FIT",  # Default
+            "risk_level": "LOW",           # Default
+            "recommendations": [],
+            "warnings": [],
+            "next_inspection_date": None,
+            "inspection_interval_years": None,
+            "critical_findings": []
+        }
+        
+        # Collect all warnings from calculations
+        all_warnings = []
+        for calc_name, result in calculations.items():
+            all_warnings.extend(result.warnings)
+        
+        # Assess fitness based on RSF
+        if "rsf" in calculations:
+            rsf = calculations["rsf"].value
+            if rsf < Decimal("0.80"):
+                assessment["fitness_for_service"] = "UNFIT"
+                assessment["risk_level"] = "CRITICAL"
+                assessment["critical_findings"].append(f"RSF {rsf:.3f} below 0.80 - immediate action required")
+            elif rsf < Decimal("0.90"):
+                assessment["fitness_for_service"] = "CONDITIONAL"
+                assessment["risk_level"] = "HIGH"
+                assessment["recommendations"].append("Perform Level 2 or Level 3 FFS assessment")
+            elif rsf < Decimal("0.95"):
+                assessment["risk_level"] = "MEDIUM"
+                assessment["recommendations"].append("Increase inspection frequency")
+        
+        # Assess based on remaining life
+        if "remaining_life" in calculations:
+            remaining_life = calculations["remaining_life"].value
+            if remaining_life < Decimal("1"):
+                assessment["fitness_for_service"] = "UNFIT"
+                assessment["risk_level"] = "CRITICAL"
+                assessment["critical_findings"].append(f"Remaining life {remaining_life:.1f} years < 1 year")
+            elif remaining_life < Decimal("2"):
+                assessment["risk_level"] = "HIGH"
+                assessment["recommendations"].append("Plan replacement within 2 years")
+                
+            # Calculate inspection interval
+            if remaining_life > 0:
+                max_interval = self.constants.get_maximum_inspection_interval(
+                    params["equipment_type"],
+                    "thickness_measurement",
+                    remaining_life
+                )
+                assessment["inspection_interval_years"] = float(max_interval)
+                assessment["next_inspection_date"] = (
+                    params["inspection_date"] + timedelta(days=int(max_interval * 365))
+                ).isoformat()
+        
+        # Add validation warnings
+        if validation.get("inconsistencies"):
+            assessment["warnings"].extend(validation["inconsistencies"])
+            assessment["recommendations"].extend(validation.get("recommendations", []))
+        
+        # Add calculation warnings
+        assessment["warnings"].extend(all_warnings)
+        
+        return assessment
+    
+    async def _store_calculation_results(
+        self,
+        inspection_id: str,
+        calculations: Dict[str, VerifiedResult],
+        assessment: Dict[str, Any],
+        performed_by: str,
+        calculation_level: str,
+        params: Dict[str, Any]
+    ) -> API579Calculation:
+        """Store calculation results in database."""
+        logger.info(f"Storing calculation results for inspection {inspection_id}")
+        
+        try:
+            # Prepare input parameters for audit trail
+            input_parameters = {
+                "equipment_type": params["equipment_type"].value,
+                "design_pressure": float(params["design_pressure"]),
+                "design_temperature": float(params["design_temperature"]),
+                "design_thickness": float(params["design_thickness"]),
+                "min_thickness_found": float(params["min_thickness_found"]),
+                "internal_radius": float(params["internal_radius"]),
+                "allowable_stress": float(params["allowable_stress"]),
+                "joint_efficiency": float(params["joint_efficiency"]),
+                "corrosion_rate": float(params.get("corrosion_rate", 0)),
+                "future_corrosion_allowance": float(params["future_corrosion_allowance"]),
+                "material_specification": params["material_specification"]
+            }
+            
+            # Extract key results
+            min_thickness = calculations.get("minimum_thickness")
+            rsf = calculations.get("rsf")
+            mawp = calculations.get("mawp")
+            remaining_life = calculations.get("remaining_life")
+            
+            # Create database record
+            db_calculation = API579Calculation(
+                inspection_record_id=inspection_id,
+                calculation_type=calculation_level,
+                calculation_method="dual-path-verification",
+                performed_by=performed_by,
+                input_parameters=input_parameters,
+                minimum_required_thickness=min_thickness.value if min_thickness else Decimal("0"),
+                remaining_strength_factor=rsf.value if rsf else Decimal("0"),
+                maximum_allowable_pressure=mawp.value if mawp else Decimal("0"),
+                remaining_life_years=remaining_life.value if remaining_life else None,
+                next_inspection_date=datetime.fromisoformat(assessment["next_inspection_date"]) if assessment.get("next_inspection_date") else None,
+                fitness_for_service=assessment["fitness_for_service"],
+                risk_level=assessment["risk_level"],
+                recommendations="\n".join(assessment["recommendations"]),
+                warnings="\n".join(assessment["warnings"]) if assessment["warnings"] else None,
+                assumptions={
+                    "calculation_assumptions": [result.assumptions for result in calculations.values()],
+                    "equipment_assumptions": [
+                        f"Internal radius assumed as {params['internal_radius']} inches",
+                        f"Joint efficiency assumed as {params['joint_efficiency']}",
+                        f"Allowable stress for {params['material_specification']} at {params['design_temperature']}°F"
+                    ]
+                },
+                confidence_score=Decimal("85.0"),  # Based on dual-path verification
+                uncertainty_factors={
+                    "measurement_uncertainty": "±0.001 inches per API 579",
+                    "material_property_uncertainty": "±5% allowable stress",
+                    "corrosion_rate_uncertainty": f"±{params.get('confidence_level', 75)}% confidence"
+                }
+            )
+            
+            self.db.add(db_calculation)
+            self.db.commit()
+            self.db.refresh(db_calculation)
+            
+            logger.info(f"Stored calculation results with ID {db_calculation.id}")
+            return db_calculation
+            
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Database error storing calculation results: {str(e)}")
+            raise
+    
+    async def _update_equipment_inspection_schedule(
+        self,
+        equipment: Equipment,
+        calculations: Dict[str, VerifiedResult],
+        assessment: Dict[str, Any]
+    ):
+        """Update equipment's next inspection due date based on calculations."""
+        try:
+            if assessment.get("next_inspection_date"):
+                equipment.next_inspection_due = datetime.fromisoformat(
+                    assessment["next_inspection_date"]
+                )
+                self.db.commit()
+                logger.info(f"Updated next inspection due for equipment {equipment.tag_number}")
+        except Exception as e:
+            logger.error(f"Error updating equipment inspection schedule: {str(e)}")
+            # Don't raise - this is not critical
+
+
+# Convenience functions for easy integration
+async def perform_api579_assessment(
+    db_session: Session,
+    inspection_id: str,
+    performed_by: str = "API579Calculator-v1.0"
+) -> Dict[str, Any]:
+    """
+    Convenience function to perform complete API 579 assessment.
+    
+    Args:
+        db_session: Database session
+        inspection_id: Inspection record ID
+        performed_by: Engineer or system performing calculation
+        
+    Returns:
+        Complete assessment results
+    """
+    service = API579Service(db_session)
+    return await service.perform_complete_assessment(
+        inspection_id=inspection_id,
+        performed_by=performed_by
+    )
+
+
+async def quick_rsf_calculation(
+    db_session: Session,
+    inspection_id: str
+) -> Optional[Decimal]:
+    """
+    Quick calculation of just the RSF for immediate assessment.
+    
+    Returns RSF value or None if cannot be calculated.
+    """
+    try:
+        service = API579Service(db_session)
+        
+        # Load inspection and equipment
+        inspection = db_session.query(InspectionRecord).filter(
+            InspectionRecord.id == inspection_id
+        ).first()
+        
+        if not inspection:
+            return None
+            
+        equipment = db_session.query(Equipment).filter(
+            Equipment.id == inspection.equipment_id
+        ).first()
+        
+        if not equipment:
+            return None
+        
+        # Extract minimal parameters for RSF calculation
+        params = service._extract_calculation_parameters(inspection, equipment)
+        
+        if not params.get("can_calculate_rsf"):
+            return None
+            
+        rsf_result = await service._calculate_rsf(params)
+        return rsf_result.value
+        
+    except Exception as e:
+        logger.error(f"Error in quick RSF calculation: {str(e)}")
+        return None

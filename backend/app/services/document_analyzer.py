@@ -52,6 +52,10 @@ class DocumentAnalyzer:
     Extracts structured data using local Ollama LLM to maintain data privacy
     for sensitive petroleum industry documents.
     """
+    # TODO: [FEATURE] Add OCR capability for scanned inspection reports
+    # Integrate pytesseract or similar for image-based document processing
+    # TODO: [VALIDATION] Implement thickness measurement validation against API 579 limits
+    # Cross-check extracted values against acceptable ranges for equipment type
     
     def __init__(self) -> None:
         self.ollama_base_url = settings.OLLAMA_BASE_URL
@@ -89,6 +93,8 @@ class DocumentAnalyzer:
         except Exception as e:
             logger.error(f"Failed to extract inspection data: {e}")
             # Return empty structure rather than failing completely
+            # TODO: [ENHANCEMENT] Add fallback extraction methods for critical data
+            # Implement regex patterns for common thickness measurement formats
             return InspectionData()
     
     def _build_extraction_prompt(self, document_text: str) -> str:
@@ -167,6 +173,8 @@ Document to analyze:
             extracted_json = json.loads(response_text)
             
             # Validate and convert to InspectionData
+            # TODO: [SECURITY] Add input sanitization for extracted equipment tags
+            # Validate against known equipment naming conventions
             return InspectionData.model_validate(extracted_json)
             
         except json.JSONDecodeError as e:

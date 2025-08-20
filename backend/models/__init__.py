@@ -1,13 +1,27 @@
-"""Database models for mechanical integrity system"""
-from app.models.inspection import Inspection, ThicknessReading, CorrosionDetection
-from app.models.equipment import Equipment, EquipmentType
-from app.models.calculation import API579Calculation
+"""
+Models package for mechanical integrity management system.
+
+Exports all SQLAlchemy models for database operations.
+All models follow API 579 compliance requirements for safety-critical calculations.
+"""
+
+from .base import Base
+from .equipment import Equipment, EquipmentType
+from .inspection import (
+    InspectionRecord, 
+    ThicknessReading, 
+    API579Calculation,
+    InspectionType,
+    CorrosionType
+)
 
 __all__ = [
-    "Inspection",
-    "ThicknessReading", 
-    "CorrosionDetection",
-    "Equipment",
+    "Base",
+    "Equipment", 
     "EquipmentType",
+    "InspectionRecord",
+    "ThicknessReading", 
     "API579Calculation",
+    "InspectionType",
+    "CorrosionType"
 ]

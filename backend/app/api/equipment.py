@@ -11,9 +11,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, validator
 
-from backend.models import equipment as models
-from backend.core.config import settings
-from backend.models.database import get_db
+from models import equipment as models
+from core.config import settings
+from models.database import get_db
 
 router = APIRouter()
 
@@ -23,7 +23,7 @@ class EquipmentBase(BaseModel):
     """Base equipment schema with safety-critical validations."""
     tag: str = Field(..., min_length=1, max_length=50, description="Equipment tag (unique identifier)")
     name: str = Field(..., min_length=1, max_length=200)
-    equipment_type: str = Field(..., regex="^(VESSEL|TANK|PIPING)$")
+    equipment_type: str = Field(..., pattern="^(VESSEL|TANK|PIPING)$")
     
     # Design parameters - critical for calculations
     design_pressure: Decimal = Field(..., gt=0, le=10000, description="Design pressure in psi")
@@ -45,6 +45,9 @@ class EquipmentBase(BaseModel):
             print(f"⚠️ High pressure equipment: {v} psi")
         return v
     
+    # TODO: [VALIDATION] Add comprehensive material-pressure-temperature validation
+    # Cross-reference material specs with ASME pressure-temperature rating charts
+    
     class Config:
         json_encoders = {
             Decimal: lambda v: float(v)
@@ -54,7 +57,7 @@ class EquipmentBase(BaseModel):
 class EquipmentCreate(EquipmentBase):
     """Schema for creating new equipment."""
     corrosion_allowance: Decimal = Field(default=Decimal("0.125"), ge=0, le=1)
-    criticality: str = Field(default="MEDIUM", regex="^(HIGH|MEDIUM|LOW)$")
+    criticality: str = Field(default="MEDIUM", pattern="^(HIGH|MEDIUM|LOW)$")
 
 
 class EquipmentUpdate(BaseModel):
@@ -86,7 +89,7 @@ class EquipmentResponse(EquipmentBase):
     inspection_overdue: bool = False
     
     class Config:
-        orm_mode = True
+        from_attributes = True
         json_encoders = {
             Decimal: lambda v: float(v),
             UUID: lambda v: str(v)
@@ -283,6 +286,9 @@ async def get_inspection_status(
         max_interval_years = 20  # API 653
     else:  # PIPING
         max_interval_years = 5   # API 570
+    
+    # TODO: [FEATURE] Implement risk-based inspection interval calculation
+    # Adjust intervals based on equipment criticality, corrosion rates, and service conditions
     
     days_overdue = 0
     if equipment.next_inspection_due:

@@ -6,15 +6,15 @@ All design specifications are critical for fitness-for-service calculations.
 """
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import String, Float, DateTime, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from models.base import Base, TimestampMixin, UUIDMixin
+from .base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from models.inspection import Inspection
+    from .inspection import InspectionRecord
 
 
 class EquipmentType(str, Enum):
@@ -95,9 +95,21 @@ class Equipment(Base, UUIDMixin, TimestampMixin):
     )
     
     # ========================================================================
+    # INSPECTION TRACKING
+    # ========================================================================
+    last_inspection_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        comment="Date of most recent inspection"
+    )
+    next_inspection_due: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        comment="Next required inspection date per API standards"
+    )
+    
+    # ========================================================================
     # RELATIONSHIPS
     # ========================================================================
-    inspections: Mapped[List["Inspection"]] = relationship(
+    inspection_records: Mapped[List["InspectionRecord"]] = relationship(
         back_populates="equipment",
         cascade="all, delete-orphan",
         lazy="select"
