@@ -42,8 +42,8 @@ async def lifespan(app: FastAPI):
     print(f"API Standards: 579-1, 510, 570, 653")
     print(f"Compliance Mode: ENABLED")
     print("="*60)
-    print(f"📚 API Docs: http://localhost:8000/docs")
-    print(f"🔍 Health Check: http://localhost:8000/health")
+    print(f"📚 API Docs: http://localhost:8001/docs")
+    print(f"🔍 Health Check: http://localhost:8001/health")
     print("="*60 + "\n")
     
     # Verify critical services
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8001,
         reload=settings.DEBUG,
         log_level="info",
     )

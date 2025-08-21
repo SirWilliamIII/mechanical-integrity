@@ -10,7 +10,7 @@ import json
 import time
 from decimal import Decimal
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8001"
 
 async def test_api579_integration():
     """Test the complete API 579 integration workflow."""
