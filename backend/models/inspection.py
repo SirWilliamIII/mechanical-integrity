@@ -367,8 +367,9 @@ class API579Calculation(Base, UUIDMixin, TimestampMixin):
         Text,
         comment="Critical warnings requiring immediate attention"
     )
-    assumptions: Mapped[dict] = mapped_column(
+    assumptions: Mapped[Optional[dict]] = mapped_column(
         JSON,
+        default={},
         comment="List of assumptions made in calculations"
     )
     

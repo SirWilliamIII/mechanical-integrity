@@ -40,7 +40,7 @@ from app.calculations.dual_path_calculator import API579Calculator
 # Configure logger for audit trail
 logger = logging.getLogger("mechanical_integrity.inspections")
 
-router = APIRouter(tags=["Inspections"], prefix="/inspections")
+router = APIRouter(tags=["Inspections"])
 
 
 # ========================================================================
@@ -87,7 +87,7 @@ class InsufficientDataError(HTTPException):
 class ThicknessReadingCreate(BaseModel):
     """Individual thickness measurement with safety-critical validation."""
     model_config = ConfigDict(
-        json_encoders={Decimal: lambda v: float(v)},
+        json_encoders={Decimal: lambda v: str(v)},
         str_strip_whitespace=True
     )
     
@@ -166,11 +166,11 @@ class ThicknessReadingCreate(BaseModel):
 class InspectionRecordCreate(BaseModel):
     """Schema for creating inspection records with comprehensive validation."""
     model_config = ConfigDict(
-        json_encoders={Decimal: lambda v: float(v)},
+        json_encoders={Decimal: lambda v: str(v)},
         str_strip_whitespace=True
     )
     
-    equipment_id: UUID4 = Field(..., description="Reference to equipment being inspected")
+    equipment_id: str = Field(..., description="Equipment UUID or tag number (e.g., 'V-101' or UUID)")
     inspection_date: datetime = Field(..., description="Date of inspection")
     inspection_type: InspectionType = Field(..., description="Inspection method used")
     inspector_name: str = Field(
@@ -221,10 +221,19 @@ class InspectionRecordCreate(BaseModel):
     @classmethod
     def validate_inspection_date(cls, v: datetime) -> datetime:
         """Validate inspection date is reasonable."""
-        now = datetime.now()
-        if v > now:
+        # Handle timezone-aware and naive datetimes
+        if v.tzinfo is not None:
+            # Convert to UTC and make naive for comparison
+            now = datetime.utcnow()
+            v_utc = v.utctimetuple()
+            v_naive = datetime(*v_utc[:6])
+        else:
+            now = datetime.now()
+            v_naive = v
+        
+        if v_naive > now:
             raise ValueError("Inspection date cannot be in the future")
-        if v < now - timedelta(days=365 * 10):  # 10 years ago
+        if v_naive < now - timedelta(days=365 * 10):  # 10 years ago
             raise ValueError("Inspection date cannot be more than 10 years old")
         return v
     
@@ -252,14 +261,14 @@ class InspectionRecordResponse(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
         json_encoders={
-            Decimal: lambda v: float(v),
+            Decimal: lambda v: str(v),
             UUID: lambda v: str(v),
             datetime: lambda v: v.isoformat()
         }
     )
     
     id: UUID4
-    equipment_id: UUID4
+    equipment_id: str
     inspection_date: datetime
     inspection_type: InspectionType
     inspector_name: str
@@ -293,7 +302,7 @@ class InspectionRecordResponse(BaseModel):
 class ThicknessReadingBulkCreate(BaseModel):
     """Schema for adding thickness readings to existing inspection."""
     model_config = ConfigDict(
-        json_encoders={Decimal: lambda v: float(v)},
+        json_encoders={Decimal: lambda v: str(v)},
         str_strip_whitespace=True
     )
     
@@ -315,7 +324,7 @@ class API579CalculationResponse(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
         json_encoders={
-            Decimal: lambda v: float(v),
+            Decimal: lambda v: str(v),
             UUID: lambda v: str(v),
             datetime: lambda v: v.isoformat()
         }
@@ -357,15 +366,24 @@ class API579CalculationResponse(BaseModel):
 # FASTAPI DEPENDENCIES FOR SAFETY-CRITICAL VALIDATION
 # ========================================================================
 
-async def valid_equipment_id(equipment_id: UUID4, db: Session = Depends(get_db)) -> Equipment:
-    """Validate equipment exists and is active."""
-    equipment = db.query(Equipment).filter(Equipment.id == str(equipment_id)).first()
-    if not equipment:
-        logger.error(f"Equipment validation failed: {equipment_id} not found")
-        raise EquipmentNotFound(equipment_id)
+def get_equipment_by_id_or_tag(equipment_identifier: str, db: Session) -> Equipment:
+    """Get equipment by UUID or tag number."""
+    # Try UUID first
+    try:
+        equipment = db.query(Equipment).filter(Equipment.id == str(equipment_identifier)).first()
+        if equipment:
+            return equipment
+    except:
+        pass
     
-    logger.info(f"Equipment validation passed: {equipment.tag_number} ({equipment_id})")
-    return equipment
+    # Try tag number
+    equipment = db.query(Equipment).filter(Equipment.tag_number == equipment_identifier).first()
+    if equipment:
+        return equipment
+    
+    # Not found
+    logger.error(f"Equipment validation failed: {equipment_identifier} not found")
+    raise EquipmentNotFound(equipment_identifier)
 
 
 async def valid_inspection_id(inspection_id: UUID4, db: Session = Depends(get_db)) -> InspectionRecord:
@@ -391,7 +409,6 @@ async def valid_inspection_id(inspection_id: UUID4, db: Session = Depends(get_db
 async def create_inspection_record(
     inspection_data: InspectionRecordCreate,
     background_tasks: BackgroundTasks,
-    equipment: Equipment = Depends(valid_equipment_id),
     db: Session = Depends(get_db)
 ):
     """
@@ -405,6 +422,8 @@ async def create_inspection_record(
     - Logs all operations for audit trail
     """
     try:
+        # Validate equipment exists
+        equipment = get_equipment_by_id_or_tag(inspection_data.equipment_id, db)
         logger.info(f"Creating inspection for equipment {equipment.tag_number}")
         
         # Extract and validate thickness measurements
@@ -417,7 +436,7 @@ async def create_inspection_record(
         confidence_level = Decimal("75.0")  # Default confidence
         
         previous_inspection = db.query(InspectionRecord).filter(
-            InspectionRecord.equipment_id == str(inspection_data.equipment_id),
+            InspectionRecord.equipment_id == str(equipment.id),
             InspectionRecord.inspection_date < inspection_data.inspection_date
         ).order_by(InspectionRecord.inspection_date.desc()).first()
         
@@ -433,13 +452,13 @@ async def create_inspection_record(
         
         # Create main inspection record
         db_inspection = InspectionRecord(
-            equipment_id=str(inspection_data.equipment_id),
+            equipment_id=str(equipment.id),
             inspection_date=inspection_data.inspection_date,
             inspection_type=inspection_data.inspection_type,
             inspector_name=inspection_data.inspector_name,
             inspector_certification=inspection_data.inspector_certification,
             report_number=inspection_data.report_number,
-            thickness_readings=[reading.model_dump() for reading in inspection_data.thickness_readings],
+            thickness_readings=[reading.model_dump(mode='json') for reading in inspection_data.thickness_readings],
             min_thickness_found=min_thickness,
             avg_thickness=avg_thickness,
             corrosion_type=inspection_data.corrosion_type,
@@ -452,6 +471,7 @@ async def create_inspection_record(
         )
         
         db.add(db_inspection)
+        db.flush()  # Flush to get the inspection ID before creating thickness readings
         
         # Create detailed thickness readings
         for reading_data in inspection_data.thickness_readings:

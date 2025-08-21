@@ -19,7 +19,16 @@ __pycache__/
 *$py.class
 
 docs/
+.pytest_cache/
+.claude/
+.qodo/
+.venv/
+.vscode/
 
+
+
+CLAUDE_STATE.md
+GEMINI.md
 # C extensions
 *.so
 

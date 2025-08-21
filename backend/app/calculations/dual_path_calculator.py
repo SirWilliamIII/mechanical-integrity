@@ -572,12 +572,24 @@ class API579Calculator:
         if corrosion_rate <= 0:
             return Decimal('999')  # Represents infinite life
         
+        # Add safety guard against extremely small corrosion rates
+        # If corrosion rate would require more than 1000 iterations, use direct calculation
+        max_iterations = 1000
+        available_corrosion = current_thickness - minimum_thickness
+        estimated_years = available_corrosion / corrosion_rate
+        
+        if estimated_years > max_iterations:
+            # For very long life calculations, use direct method to prevent timeout
+            return min(estimated_years, Decimal('999'))
+        
         years = Decimal('0')
         thickness = current_thickness
+        iterations = 0
         
-        # Project year by year
-        while thickness > minimum_thickness:
+        # Project year by year with safety limit
+        while thickness > minimum_thickness and iterations < max_iterations:
             thickness -= corrosion_rate
+            iterations += 1
             if thickness > minimum_thickness:
                 years += Decimal('1')
             else:
@@ -586,6 +598,10 @@ class API579Calculator:
                 fractional_year = remaining / corrosion_rate
                 years += fractional_year
                 break
+        
+        # If we hit the iteration limit, fall back to direct calculation
+        if iterations >= max_iterations:
+            return min(estimated_years, Decimal('999'))
         
         return years
     

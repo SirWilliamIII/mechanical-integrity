@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Mechanical Integrity AI"
     API_VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
+    # TODO: [PRODUCTION] Set development defaults to production-safe values
+    # DEBUG=True and ENVIRONMENT="development" should not be hardcoded defaults
+    # Consider environment-based defaults or require explicit configuration
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     

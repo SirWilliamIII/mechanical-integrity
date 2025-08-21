@@ -77,6 +77,8 @@ class HealthChecker:
         if self.http_client:
             await self.http_client.aclose()
         if self.redis_client:
+            # TODO: [DEPRECATION] Replace deprecated close() with aclose()
+            # Redis client deprecation warning: Use aclose() instead of close()
             await self.redis_client.close()
     
     async def check_all_services(self) -> Dict[str, Any]:
@@ -186,6 +188,9 @@ class HealthChecker:
                     response_time_ms=response_time
                 )
             else:
+                # TODO: [SCHEMA] Update expected table list for complete database schema
+                # Current check only looks for 2 tables but full schema has more
+                # Should check for all tables: equipment, inspection_records, api579_calculations, etc.
                 return ServiceHealth(
                     name="postgresql",
                     status=ServiceStatus.DEGRADED,

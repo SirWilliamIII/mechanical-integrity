@@ -56,7 +56,9 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("✅ PostgreSQL connected")
     
-    # TODO: Add Redis and Ollama connection checks
+    # TODO: [SERVICES] Implement Redis and Ollama health checks for production readiness
+    # Missing service checks prevent proper monitoring of background job queue and LLM processing
+    # Redis required for document processing queue, Ollama for inspection report analysis
     logger.info("✅ Redis check skipped (not implemented)")
     logger.info("✅ Ollama check skipped (not implemented)")
     

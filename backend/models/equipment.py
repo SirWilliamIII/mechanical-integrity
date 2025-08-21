@@ -5,10 +5,11 @@ Defines equipment registry for petroleum industry assets with API 579 compliance
 All design specifications are critical for fitness-for-service calculations.
 """
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import String, Float, DateTime, Enum as SQLEnum
+from sqlalchemy import String, Float, DateTime, Enum as SQLEnum, DECIMAL
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin, UUIDMixin
@@ -60,16 +61,16 @@ class Equipment(Base, UUIDMixin, TimestampMixin):
     # ========================================================================
     # DESIGN SPECIFICATIONS - CRITICAL FOR API 579 CALCULATIONS
     # ========================================================================
-    design_pressure: Mapped[float] = mapped_column(
-        Float,
+    design_pressure: Mapped[Decimal] = mapped_column(
+        DECIMAL(precision=8, scale=2),  # Up to 999,999.99 PSI with 0.01 PSI precision
         comment="Design pressure in PSI - used for MAWP calculations"
     )
-    design_temperature: Mapped[float] = mapped_column(
-        Float,
+    design_temperature: Mapped[Decimal] = mapped_column(
+        DECIMAL(precision=6, scale=1),  # -9999.9 to 9999.9 °F with 0.1°F precision
         comment="Design temperature in °F - affects material properties"
     )
-    design_thickness: Mapped[float] = mapped_column(
-        Float,
+    design_thickness: Mapped[Decimal] = mapped_column(
+        DECIMAL(precision=6, scale=3),  # 0.001 to 999.999 inches with ±0.001 precision (API 579 requirement)
         comment="Original design thickness in inches - baseline for remaining life"
     )
     material_specification: Mapped[str] = mapped_column(
@@ -80,9 +81,9 @@ class Equipment(Base, UUIDMixin, TimestampMixin):
     # ========================================================================
     # CORROSION AND SERVICE PARAMETERS
     # ========================================================================
-    corrosion_allowance: Mapped[float] = mapped_column(
-        Float,
-        default=0.125,
+    corrosion_allowance: Mapped[Decimal] = mapped_column(
+        DECIMAL(precision=5, scale=3),  # Up to 99.999 inches with ±0.001 precision
+        default=Decimal('0.125'),
         comment="Design corrosion allowance in inches (typically 0.125)"
     )
     service_description: Mapped[str] = mapped_column(
