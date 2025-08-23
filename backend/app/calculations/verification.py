@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 import logging
 
-from .constants import API579Constants, EquipmentType, DamageType
+from .constants import API579Constants, EquipmentType
 
 logger = logging.getLogger(__name__)
 

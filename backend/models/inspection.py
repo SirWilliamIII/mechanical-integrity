@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import Optional, List, TYPE_CHECKING
 from enum import Enum
 
-from sqlalchemy import String, Float, ForeignKey, Text, JSON, DateTime, Boolean, DECIMAL
+from sqlalchemy import String, ForeignKey, Text, JSON, DateTime, Boolean, DECIMAL
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base, TimestampMixin, UUIDMixin
 

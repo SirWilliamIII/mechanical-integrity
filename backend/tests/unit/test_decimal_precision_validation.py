@@ -6,8 +6,8 @@ required precision (±0.001 inches) throughout the entire data pipeline.
 Designed to catch the critical Float/Decimal inconsistency issues identified.
 """
 import pytest
-from decimal import Decimal, ROUND_HALF_UP, InvalidOperation, getcontext
-from sqlalchemy import create_engine, text
+from decimal import Decimal, ROUND_HALF_UP, getcontext
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import json
 from datetime import datetime, timedelta
@@ -16,8 +16,6 @@ from uuid import uuid4
 from models.base import Base
 from models.equipment import Equipment, EquipmentType
 from models.inspection import InspectionRecord, ThicknessReading, API579Calculation
-from app.api.equipment import EquipmentCreate, EquipmentResponse
-from core.config import settings
 
 # Set high precision for tests
 getcontext().prec = 28

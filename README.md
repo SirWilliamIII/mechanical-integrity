@@ -13,6 +13,9 @@ This system provides safety-critical analysis for petroleum industry equipment, 
 - **Equipment Registry**: Comprehensive asset management with specification tracking
 - **Risk Assessment**: Remaining life and strength factor calculations
 - **Audit Trail**: Complete traceability for all safety-critical calculations
+- **Session Isolation**: Production-safe background task processing with independent database sessions
+- **Security Hardening**: Comprehensive input sanitization against injection attacks
+- **Health Monitoring**: Real-time service health checks for Redis, Ollama, and PostgreSQL
 
 ## Safety-Critical Design
 
@@ -21,6 +24,9 @@ This system provides safety-critical analysis for petroleum industry equipment, 
 - **Conservative estimates** with appropriate safety factors
 - **Human review required** for RSF < 0.9 or remaining life < 2 years
 - **Complete audit logging** for regulatory compliance
+- **Production-safe defaults** with explicit validation preventing debug mode in production
+- **Session-per-task isolation** preventing data corruption in concurrent operations
+- **Comprehensive input validation** protecting against injection attacks and malformed data
 
 ## Tech Stack
 
@@ -77,6 +83,9 @@ MAX_ALLOWABLE_STRESS=20000
 ### Running Tests
 
 ```bash
+# All tests with verbose output
+uv run pytest -v
+
 # All tests with coverage
 uv run pytest --cov=app tests/
 
@@ -85,6 +94,8 @@ uv run pytest tests/unit/
 
 # Integration tests
 uv run pytest tests/integration/
+
+# Current test status: 108 passing, safety-critical session isolation fixed
 ```
 
 ### Code Quality
@@ -150,11 +161,14 @@ uv run alembic upgrade head
 
 ## Contributing
 
-1. Ensure all tests pass: `uv run pytest`
+1. Ensure all tests pass: `uv run pytest -v`
 2. Check code quality: `uv run ruff check .`
 3. Verify calculations against API 579 examples
 4. Document any new safety-critical functions
 5. Human review required for all calculation changes
+6. Follow session-per-task pattern for database operations
+7. Use production-safe configuration defaults
+8. Implement comprehensive input validation for all user inputs
 
 ## Regulatory Compliance
 

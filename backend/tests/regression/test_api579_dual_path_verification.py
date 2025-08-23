@@ -6,20 +6,13 @@ as the calculation engine evolves. Uses known good reference calculations
 to prevent regression errors in safety-critical calculations.
 """
 import pytest
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from datetime import datetime
-import json
-import os
-from typing import Dict, List, Any
-from pathlib import Path
 
 from app.calculations.dual_path_calculator import (
     API579Calculator, 
-    VerifiedResult, 
     CalculationDiscrepancyError
 )
-from app.calculations.verification import CalculationVerifier
-from app.calculations.constants import API579Constants, EquipmentType
 
 
 class TestAPI579RegressionSuite:
@@ -222,7 +215,7 @@ class TestAPI579RegressionSuite:
                     f"API reference mismatch for {case['name']}"
                 )
                 
-                print(f"   ✅ Passed regression test")
+                print("   ✅ Passed regression test")
     
     def test_rsf_calculation_regression(self, reference_calculations):
         """Test RSF calculations against reference values."""
@@ -266,7 +259,7 @@ class TestAPI579RegressionSuite:
                 f"Invalid verification method for {case['name']}: {result.verification_method}"
             )
             
-            print(f"   ✅ Passed RSF regression test")
+            print("   ✅ Passed RSF regression test")
     
     def test_remaining_life_regression(self, reference_calculations):
         """Test remaining life calculations against reference values."""
@@ -306,7 +299,7 @@ class TestAPI579RegressionSuite:
                 f"Final {result.value} > Primary {result.primary_value}"
             )
             
-            print(f"   ✅ Passed remaining life regression test")
+            print("   ✅ Passed remaining life regression test")
     
     def test_mawp_calculation_regression(self, reference_calculations):
         """Test MAWP calculations against reference values."""
@@ -345,7 +338,7 @@ class TestAPI579RegressionSuite:
             assert result.value > Decimal('0'), f"MAWP must be positive for {case['name']}"
             assert result.value < Decimal('10000'), f"MAWP unreasonably high for {case['name']}: {result.value}"
             
-            print(f"   ✅ Passed MAWP regression test")
+            print("   ✅ Passed MAWP regression test")
     
     def test_calculation_result_structure_regression(self):
         """Test that VerifiedResult structure hasn't changed."""
@@ -432,7 +425,7 @@ class TestAPI579RegressionSuite:
             assert "Tolerance=" in error_msg, "Error message format changed"
             assert "API Reference:" in error_msg, "Error message format changed"
             
-            print(f"   ✅ Verification failure behavior consistent")
+            print("   ✅ Verification failure behavior consistent")
     
     def test_assumptions_and_warnings_regression(self):
         """Test that assumptions and warnings are generated consistently."""

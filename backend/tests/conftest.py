@@ -99,8 +99,6 @@ def sample_inspection_data(sample_equipment):
 def sample_equipment(test_db):
     """Create sample equipment in database for testing."""
     from models.equipment import Equipment, EquipmentType
-    from sqlalchemy.orm import Session
-    from datetime import datetime
     
     equipment = Equipment(
         tag_number="V-101",
@@ -126,7 +124,6 @@ def sample_equipment(test_db):
 def sample_inspection(test_db, sample_equipment):
     """Create sample inspection record in database."""
     from models.inspection import InspectionRecord, InspectionType
-    from datetime import datetime
     import uuid
     
     thickness_data = [
@@ -162,7 +159,7 @@ def sample_inspection(test_db, sample_equipment):
 def multiple_inspections(test_db, sample_equipment):
     """Create multiple inspection records for trend analysis."""
     from models.inspection import InspectionRecord, InspectionType
-    from datetime import datetime, timedelta
+    from datetime import timedelta
     import uuid
     
     inspections = []

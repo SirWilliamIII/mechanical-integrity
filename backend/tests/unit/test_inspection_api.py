@@ -5,7 +5,7 @@ Tests thickness measurements, corrosion calculations, and compliance.
 import pytest
 from datetime import datetime, timedelta
 from decimal import Decimal
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 
 from backend.tests.conftest import (
     assert_response_success,

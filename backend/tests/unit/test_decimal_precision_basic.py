@@ -4,10 +4,8 @@ Basic decimal precision tests that can run independently.
 These tests validate fundamental decimal precision requirements
 without requiring the full application stack.
 """
-import pytest
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 import json
-import math
 
 # Set high precision for tests
 getcontext().prec = 28

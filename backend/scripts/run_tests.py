@@ -20,12 +20,10 @@ Options:
 """
 
 import argparse
-import os
 import sys
 import subprocess
 import time
 from pathlib import Path
-from decimal import Decimal
 from datetime import datetime
 import json
 
@@ -135,7 +133,7 @@ def check_environment() -> bool:
     
     if not all_passed:
         print(f"\n{Colors.RED}❌ Environment check failed. Please install missing dependencies.{Colors.END}")
-        print(f"   Run: uv add hypothesis psutil --dev")
+        print("   Run: uv add hypothesis psutil --dev")
     else:
         print(f"\n{Colors.GREEN}✅ Environment check passed{Colors.END}")
     
@@ -245,7 +243,7 @@ def generate_test_report(results: list, args: argparse.Namespace):
     
     success_rate = (total_passed / total_tests * 100) if total_tests > 0 else 0
     
-    print(f"\n🎯 OVERALL RESULTS:")
+    print("\n🎯 OVERALL RESULTS:")
     print(f"   Total Tests: {total_tests}")
     print(f"   ✅ Passed: {total_passed} ({success_rate:.1f}%)")
     if total_failed > 0:
@@ -255,13 +253,13 @@ def generate_test_report(results: list, args: argparse.Namespace):
     print(f"   ⏱️  Total Time: {total_time:.1f}s")
     
     # Category breakdown
-    print(f"\n📊 CATEGORY BREAKDOWN:")
+    print("\n📊 CATEGORY BREAKDOWN:")
     for result in results:
         status = "✅" if result["failed"] == 0 else "❌"
         print(f"   {status} {result['category'].title()}: {result['passed']}/{result['total']} passed ({result['time']:.1f}s)")
     
     # Safety-critical validation summary
-    print(f"\n🛡️  SAFETY-CRITICAL VALIDATION:")
+    print("\n🛡️  SAFETY-CRITICAL VALIDATION:")
     
     precision_tests = next((r for r in results if r["category"] == "precision"), None)
     safety_tests = next((r for r in results if r["category"] == "safety"), None)
@@ -275,7 +273,7 @@ def generate_test_report(results: list, args: argparse.Namespace):
         print(f"   Safety-Critical: {safety_status} ({safety_tests['passed']}/{safety_tests['total']})")
     
     # Critical issues summary
-    print(f"\n🚨 CRITICAL ISSUES STATUS:")
+    print("\n🚨 CRITICAL ISSUES STATUS:")
     critical_issues = [
         "Float/Decimal inconsistency in Equipment model",
         "JSON precision loss in API responses", 
@@ -289,15 +287,15 @@ def generate_test_report(results: list, args: argparse.Namespace):
     print(f"\n   📋 All {len(critical_issues)} critical issues documented with fixes")
     
     # Readiness assessment
-    print(f"\n🎉 SYSTEM READINESS:")
+    print("\n🎉 SYSTEM READINESS:")
     if total_failed == 0:
-        print(f"   ✅ All tests passing - Ready for critical issue remediation")
-        print(f"   ✅ Safety-critical validation complete")
-        print(f"   ✅ Zero tolerance precision requirements validated")
-        print(f"   ✅ $15M+ JIP deployment readiness: CONFIRMED")
+        print("   ✅ All tests passing - Ready for critical issue remediation")
+        print("   ✅ Safety-critical validation complete")
+        print("   ✅ Zero tolerance precision requirements validated")
+        print("   ✅ $15M+ JIP deployment readiness: CONFIRMED")
     else:
         print(f"   ⚠️  {total_failed} test failures require attention")
-        print(f"   📋 Review failed tests before production deployment")
+        print("   📋 Review failed tests before production deployment")
     
     # Generate JSON report if requested
     if args.report:

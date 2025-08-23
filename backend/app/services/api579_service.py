@@ -13,25 +13,22 @@ Key Features:
 - Comprehensive error handling and validation
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from datetime import datetime, timedelta
 from decimal import Decimal
-from uuid import uuid4
 import logging
-import asyncio
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
 from models import (
     InspectionRecord, 
-    ThicknessReading, 
     API579Calculation, 
     Equipment,
     EquipmentType as ModelEquipmentType
 )
 from app.calculations.dual_path_calculator import API579Calculator, VerifiedResult
-from app.calculations.constants import API579Constants, EquipmentType, DamageType
+from app.calculations.constants import API579Constants, EquipmentType
 from app.calculations.verification import CalculationVerifier
 
 logger = logging.getLogger("mechanical_integrity.api579_service")
@@ -45,18 +42,17 @@ class API579Service:
     and equipment-specific logic to provide complete FFS assessments.
     """
     
-    def __init__(self, db_session: Session):
+    def __init__(self, session_factory: sessionmaker):
         """
-        Initialize service with database session.
+        Initialize service with session factory for proper isolation.
         
-        # TODO: [BACKGROUND_TASKS] Fix session isolation issues for background calculations
-        # Background tasks need independent database sessions to avoid connection conflicts
-        # Current: Shared session causes test failures and production threading issues
+        Each operation will create its own database session to avoid
+        connection conflicts in background tasks and concurrent operations.
         
         Args:
-            db_session: SQLAlchemy database session
+            session_factory: SQLAlchemy sessionmaker for creating independent sessions
         """
-        self.db = db_session
+        self.session_factory = session_factory
         self.calculator = API579Calculator()
         self.verifier = CalculationVerifier()
         self.constants = API579Constants()
@@ -78,94 +74,97 @@ class API579Service:
         Returns:
             Dict containing all calculation results and recommendations
         """
-        try:
-            logger.info(f"Starting complete API 579 assessment for inspection {inspection_id}")
-            
-            # Load inspection data
-            inspection = self.db.query(InspectionRecord).filter(
-                InspectionRecord.id == inspection_id
-            ).first()
-            
-            if not inspection:
-                raise ValueError(f"Inspection {inspection_id} not found")
-            
-            # Load equipment data
-            equipment = self.db.query(Equipment).filter(
-                Equipment.id == inspection.equipment_id
-            ).first()
-            
-            if not equipment:
-                raise ValueError(f"Equipment {inspection.equipment_id} not found")
-            
-            # Extract calculation parameters
-            calc_params = self._extract_calculation_parameters(inspection, equipment)
-            logger.info(f"Extracted calculation parameters: {calc_params}")
-            
-            # Perform all calculations
-            calculation_results = {}
-            
-            # 1. Minimum Required Thickness
-            if calc_params["can_calculate_thickness"]:
-                result = await self._calculate_minimum_thickness(calc_params)
-                calculation_results["minimum_thickness"] = result
+        # Use session per task pattern for proper isolation
+        with self.session_factory() as db:
+            try:
+                logger.info(f"Starting complete API 579 assessment for inspection {inspection_id}")
                 
-            # 2. Remaining Strength Factor
-            if calc_params["can_calculate_rsf"]:
-                result = await self._calculate_rsf(calc_params)
-                calculation_results["rsf"] = result
+                # Load inspection data
+                inspection = db.query(InspectionRecord).filter(
+                    InspectionRecord.id == inspection_id
+                ).first()
                 
-            # 3. Maximum Allowable Working Pressure
-            if calc_params["can_calculate_mawp"]:
-                result = await self._calculate_mawp(calc_params)
-                calculation_results["mawp"] = result
+                if not inspection:
+                    raise ValueError(f"Inspection {inspection_id} not found")
                 
-            # 4. Remaining Life
-            if calc_params["can_calculate_remaining_life"]:
-                result = await self._calculate_remaining_life(calc_params)
-                calculation_results["remaining_life"] = result
+                # Load equipment data
+                equipment = db.query(Equipment).filter(
+                    Equipment.id == inspection.equipment_id
+                ).first()
+                
+                if not equipment:
+                    raise ValueError(f"Equipment {inspection.equipment_id} not found")
             
-            # Perform cross-validation
-            validation_results = self._validate_calculation_consistency(
-                calculation_results, calc_params
-            )
-            
-            # Generate overall assessment
-            overall_assessment = self._generate_overall_assessment(
-                calculation_results, validation_results, calc_params
-            )
-            
-            # Store results in database
-            db_calculation = await self._store_calculation_results(
-                inspection_id,
-                calculation_results,
-                overall_assessment,
-                performed_by,
-                calculation_level,
-                calc_params
-            )
-            
-            # Update equipment next inspection date
-            await self._update_equipment_inspection_schedule(
-                equipment, calculation_results, overall_assessment
-            )
-            
-            logger.info(f"Completed API 579 assessment for inspection {inspection_id}")
-            
-            return {
-                "calculation_id": db_calculation.id,
-                "inspection_id": inspection_id,
-                "equipment_id": equipment.id,
-                "equipment_tag": equipment.tag_number,
-                "calculation_results": calculation_results,
-                "overall_assessment": overall_assessment,
-                "validation_results": validation_results,
-                "timestamp": datetime.utcnow().isoformat(),
-                "performed_by": performed_by
-            }
-            
-        except Exception as e:
-            logger.error(f"Error in API 579 assessment: {str(e)}")
-            raise
+                # Extract calculation parameters
+                calc_params = self._extract_calculation_parameters(inspection, equipment)
+                logger.info(f"Extracted calculation parameters: {calc_params}")
+                
+                # Perform all calculations
+                calculation_results = {}
+                
+                # 1. Minimum Required Thickness
+                if calc_params["can_calculate_thickness"]:
+                    result = await self._calculate_minimum_thickness(calc_params)
+                    calculation_results["minimum_thickness"] = result
+                    
+                # 2. Remaining Strength Factor
+                if calc_params["can_calculate_rsf"]:
+                    result = await self._calculate_rsf(calc_params)
+                    calculation_results["rsf"] = result
+                    
+                # 3. Maximum Allowable Working Pressure
+                if calc_params["can_calculate_mawp"]:
+                    result = await self._calculate_mawp(calc_params)
+                    calculation_results["mawp"] = result
+                    
+                # 4. Remaining Life
+                if calc_params["can_calculate_remaining_life"]:
+                    result = await self._calculate_remaining_life(calc_params)
+                    calculation_results["remaining_life"] = result
+                
+                # Perform cross-validation
+                validation_results = self._validate_calculation_consistency(
+                    calculation_results, calc_params
+                )
+                
+                # Generate overall assessment
+                overall_assessment = self._generate_overall_assessment(
+                    calculation_results, validation_results, calc_params
+                )
+                
+                # Store results in database
+                db_calculation = await self._store_calculation_results(
+                    db,
+                    inspection_id,
+                    calculation_results,
+                    overall_assessment,
+                    performed_by,
+                    calculation_level,
+                    calc_params
+                )
+                
+                # Update equipment next inspection date
+                await self._update_equipment_inspection_schedule(
+                    db, equipment, calculation_results, overall_assessment
+                )
+                
+                logger.info(f"Completed API 579 assessment for inspection {inspection_id}")
+                
+                return {
+                    "calculation_id": db_calculation.id,
+                    "inspection_id": inspection_id,
+                    "equipment_id": equipment.id,
+                    "equipment_tag": equipment.tag_number,
+                    "calculation_results": calculation_results,
+                    "overall_assessment": overall_assessment,
+                    "validation_results": validation_results,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "performed_by": performed_by
+                }
+                
+            except Exception as e:
+                logger.error(f"Error in API 579 assessment: {str(e)}")
+                raise
     
     def _extract_calculation_parameters(
         self, 
@@ -509,6 +508,7 @@ class API579Service:
     
     async def _store_calculation_results(
         self,
+        db: Session,
         inspection_id: str,
         calculations: Dict[str, VerifiedResult],
         assessment: Dict[str, Any],
@@ -573,20 +573,21 @@ class API579Service:
                 }
             )
             
-            self.db.add(db_calculation)
-            self.db.commit()
-            self.db.refresh(db_calculation)
+            db.add(db_calculation)
+            db.commit()
+            db.refresh(db_calculation)
             
             logger.info(f"Stored calculation results with ID {db_calculation.id}")
             return db_calculation
             
         except SQLAlchemyError as e:
-            self.db.rollback()
+            db.rollback()
             logger.error(f"Database error storing calculation results: {str(e)}")
             raise
     
     async def _update_equipment_inspection_schedule(
         self,
+        db: Session,
         equipment: Equipment,
         calculations: Dict[str, VerifiedResult],
         assessment: Dict[str, Any]
@@ -597,7 +598,7 @@ class API579Service:
                 equipment.next_inspection_due = datetime.fromisoformat(
                     assessment["next_inspection_date"]
                 )
-                self.db.commit()
+                db.commit()
                 logger.info(f"Updated next inspection due for equipment {equipment.tag_number}")
         except Exception as e:
             logger.error(f"Error updating equipment inspection schedule: {str(e)}")
@@ -606,7 +607,7 @@ class API579Service:
 
 # Convenience functions for easy integration
 async def perform_api579_assessment(
-    db_session: Session,
+    session_factory: sessionmaker,
     inspection_id: str,
     performed_by: str = "API579Calculator-v1.0"
 ) -> Dict[str, Any]:
@@ -614,14 +615,14 @@ async def perform_api579_assessment(
     Convenience function to perform complete API 579 assessment.
     
     Args:
-        db_session: Database session
+        session_factory: SQLAlchemy sessionmaker for creating database sessions
         inspection_id: Inspection record ID
         performed_by: Engineer or system performing calculation
         
     Returns:
         Complete assessment results
     """
-    service = API579Service(db_session)
+    service = API579Service(session_factory)
     return await service.perform_complete_assessment(
         inspection_id=inspection_id,
         performed_by=performed_by
@@ -629,7 +630,7 @@ async def perform_api579_assessment(
 
 
 async def quick_rsf_calculation(
-    db_session: Session,
+    session_factory: sessionmaker,
     inspection_id: str
 ) -> Optional[Decimal]:
     """
@@ -638,31 +639,33 @@ async def quick_rsf_calculation(
     Returns RSF value or None if cannot be calculated.
     """
     try:
-        service = API579Service(db_session)
+        service = API579Service(session_factory)
         
-        # Load inspection and equipment
-        inspection = db_session.query(InspectionRecord).filter(
-            InspectionRecord.id == inspection_id
-        ).first()
-        
-        if not inspection:
-            return None
+        # Use session per task pattern
+        with session_factory() as db:
+            # Load inspection and equipment
+            inspection = db.query(InspectionRecord).filter(
+                InspectionRecord.id == inspection_id
+            ).first()
             
-        equipment = db_session.query(Equipment).filter(
-            Equipment.id == inspection.equipment_id
-        ).first()
-        
-        if not equipment:
-            return None
-        
-        # Extract minimal parameters for RSF calculation
-        params = service._extract_calculation_parameters(inspection, equipment)
-        
-        if not params.get("can_calculate_rsf"):
-            return None
+            if not inspection:
+                return None
+                
+            equipment = db.query(Equipment).filter(
+                Equipment.id == inspection.equipment_id
+            ).first()
             
-        rsf_result = await service._calculate_rsf(params)
-        return rsf_result.value
+            if not equipment:
+                return None
+            
+            # Extract minimal parameters for RSF calculation
+            params = service._extract_calculation_parameters(inspection, equipment)
+            
+            if not params.get("can_calculate_rsf"):
+                return None
+                
+            rsf_result = await service._calculate_rsf(params)
+            return rsf_result.value
         
     except Exception as e:
         logger.error(f"Error in quick RSF calculation: {str(e)}")

@@ -1038,51 +1038,51 @@ async def trigger_api579_calculations(inspection_id: UUID, equipment_id: UUID, r
         from app.services.api579_service import API579Service
         from models.database import SessionLocal
         
-        # Create database session for background task
-        db = SessionLocal()
+        # Initialize service with session factory for proper isolation
+        api579_service = API579Service(SessionLocal)
         
-        try:
-            # Initialize service and perform complete assessment
-            api579_service = API579Service(db)
-            
-            # Check if calculations already exist and recalculation is not forced
-            if not recalculate:
-                existing_calculations = db.query(API579Calculation).filter(
-                    API579Calculation.inspection_record_id == inspection_id
-                ).first()
+        # Use session per task for background operations
+        with SessionLocal() as db:
+            try:
+                # Check if calculations already exist and recalculation is not forced
+                if not recalculate:
+                    existing_calculations = db.query(API579Calculation).filter(
+                        API579Calculation.inspection_record_id == inspection_id
+                    ).first()
+                    
+                    if existing_calculations:
+                        logger.info(f"API 579 calculations already exist for inspection {inspection_id}")
+                        return
                 
-                if existing_calculations:
-                    logger.info(f"API 579 calculations already exist for inspection {inspection_id}")
-                    return
-            
-            # Perform complete API 579 assessment
-            results = await api579_service.perform_complete_assessment(
-                inspection_id=str(inspection_id),
-                performed_by="API579Calculator-v1.0",
-                calculation_level="Level 1"
-            )
-            
-            logger.info(
-                f"Completed API 579 calculations for inspection {inspection_id}. "
-                f"RSF: {results.get('rsf', 'N/A')}, "
-                f"Remaining Life: {results.get('remaining_life', 'N/A')} years"
-            )
-            
-            # Log any critical findings
-            if results.get('rsf') and results['rsf'] < Decimal("0.90"):
-                logger.warning(
-                    f"CRITICAL: RSF {results['rsf']:.3f} below acceptance criteria "
-                    f"for inspection {inspection_id}"
-                )
-            
-            if results.get('remaining_life') and results['remaining_life'] < Decimal("2.0"):
-                logger.warning(
-                    f"CRITICAL: Remaining life {results['remaining_life']:.1f} years "
-                    f"below 2-year threshold for inspection {inspection_id}"
+                # Perform complete API 579 assessment
+                results = await api579_service.perform_complete_assessment(
+                    inspection_id=str(inspection_id),
+                    performed_by="API579Calculator-v1.0",
+                    calculation_level="Level 1"
                 )
                 
-        finally:
-            db.close()
+                logger.info(
+                    f"Completed API 579 calculations for inspection {inspection_id}. "
+                    f"RSF: {results.get('rsf', 'N/A')}, "
+                    f"Remaining Life: {results.get('remaining_life', 'N/A')} years"
+                )
+                
+                # Log any critical findings
+                if results.get('rsf') and results['rsf'] < Decimal("0.90"):
+                    logger.warning(
+                        f"CRITICAL: RSF {results['rsf']:.3f} below acceptance criteria "
+                        f"for inspection {inspection_id}"
+                    )
+                
+                if results.get('remaining_life') and results['remaining_life'] < Decimal("2.0"):
+                    logger.warning(
+                        f"CRITICAL: Remaining life {results['remaining_life']:.1f} years "
+                        f"below 2-year threshold for inspection {inspection_id}"
+                    )
+            
+            except Exception as e:
+                logger.error(f"Error in background API 579 calculations: {str(e)}", exc_info=True)
+                # Don't re-raise - this is a background task
         
     except Exception as e:
         logger.error(f"Error in background API 579 calculations: {str(e)}", exc_info=True)

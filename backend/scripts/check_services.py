@@ -34,7 +34,7 @@ async def check_services():
         )
         version = await conn.fetchval('SELECT version()')
         await conn.close()
-        print(f"✅ PostgreSQL: Running and database 'risk-assessment' exists")
+        print("✅ PostgreSQL: Running and database 'risk-assessment' exists")
         print(f"   {version.split(',')[0]}")
     except Exception as e:
         print(f"❌ PostgreSQL: {e}")

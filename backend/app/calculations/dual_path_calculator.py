@@ -15,11 +15,11 @@ Safety Level: SIL 3 per IEC 61508
 """
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, Optional, Tuple
+from typing import Optional
 from uuid import uuid4
 import logging
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -392,7 +392,7 @@ class API579Calculator:
             "Linear corrosion rate assumed",
             "No acceleration of corrosion considered",
             "Uniform thickness loss pattern",
-            f"Minimum thickness includes corrosion allowance"
+            "Minimum thickness includes corrosion allowance"
         ])
         
         # Verify calculations

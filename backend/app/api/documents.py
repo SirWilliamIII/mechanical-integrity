@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 from typing import Dict
 import tempfile
 import os
-from pathlib import Path
 
 from app.services.document_extractor import InspectionDocumentExtractor
 

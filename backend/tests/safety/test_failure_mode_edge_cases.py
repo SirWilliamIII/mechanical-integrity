@@ -6,21 +6,14 @@ invalid inputs, or failure scenarios to ensure safe failure modes
 and appropriate operator alerts.
 """
 import pytest
-from decimal import Decimal, InvalidOperation, DivisionByZero
-from datetime import datetime, timedelta
-import math
-from typing import Dict, List, Any, Optional
-import logging
+from decimal import Decimal, DivisionByZero
 
 from app.calculations.dual_path_calculator import (
     API579Calculator, 
-    VerifiedResult, 
     CalculationDiscrepancyError
 )
 from app.calculations.verification import CalculationVerifier
 from app.calculations.constants import API579Constants, EquipmentType
-from models.equipment import Equipment, EquipmentType as ModelEquipmentType
-from models.inspection import InspectionRecord, ThicknessReading
 
 
 class TestSafetyCriticalEdgeCases:

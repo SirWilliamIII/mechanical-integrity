@@ -6,6 +6,7 @@ while maintaining data privacy for sensitive petroleum industry information.
 """
 import json
 import logging
+import re
 from typing import Dict, Any, Optional, List
 
 import httpx
@@ -14,6 +15,93 @@ from pydantic import BaseModel, Field
 from core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def sanitize_equipment_tag(tag: str) -> Optional[str]:
+    """
+    Sanitize and validate equipment tag names for security.
+    
+    Valid equipment tag formats for petroleum industry:
+    - V-101 (Vessel)
+    - T-201 (Tank) 
+    - P-301 (Pump/Piping)
+    - E-401 (Heat Exchanger)
+    - V-101-SUFFIX (with descriptive suffix)
+    
+    Args:
+        tag: Raw equipment tag from AI extraction
+        
+    Returns:
+        Sanitized tag if valid, None if invalid/malicious
+    """
+    if not tag or not isinstance(tag, str):
+        return None
+    
+    # Remove any leading/trailing whitespace
+    tag = tag.strip()
+    
+    # Length validation - prevent excessively long tags
+    if len(tag) > 50:  # Matches database column limit
+        logger.warning(f"Equipment tag too long: {len(tag)} chars")
+        return None
+    
+    # Pattern validation for standard petroleum industry equipment tags
+    # Allows: Letter-Number, Letter-Number-Alphanumeric suffix
+    equipment_tag_pattern = re.compile(
+        r'^[A-Z]{1,3}-\d{1,4}(?:-[A-Z0-9_-]{1,20})?$',
+        re.IGNORECASE
+    )
+    
+    if not equipment_tag_pattern.match(tag):
+        logger.warning(f"Invalid equipment tag format: {tag}")
+        return None
+    
+    # Convert to uppercase for consistency
+    sanitized = tag.upper()
+    
+    # Additional security checks
+    # Prevent common injection patterns
+    malicious_patterns = [
+        r'[<>"\'\(\);]',  # HTML/SQL injection characters
+        r'\\x[0-9a-fA-F]{2}',  # Hex-encoded characters
+        r'%[0-9a-fA-F]{2}',  # URL-encoded characters
+        r'\\\w+',  # Backslash escapes
+        r'\$\{.*\}',  # Variable interpolation
+    ]
+    
+    for pattern in malicious_patterns:
+        if re.search(pattern, sanitized):
+            logger.error(f"Malicious pattern detected in equipment tag: {tag}")
+            return None
+    
+    return sanitized
+
+
+def sanitize_measurement_location(location: str) -> Optional[str]:
+    """
+    Sanitize thickness measurement location descriptions.
+    
+    Args:
+        location: Raw location description from AI extraction
+        
+    Returns:
+        Sanitized location if valid, None if invalid
+    """
+    if not location or not isinstance(location, str):
+        return None
+        
+    # Remove leading/trailing whitespace
+    location = location.strip()
+    
+    # Length validation
+    if len(location) > 200:  # Reasonable limit for location descriptions
+        return None
+    
+    # Remove potentially dangerous characters but allow normal punctuation
+    # Allow letters, numbers, spaces, hyphens, periods, commas, parentheses
+    safe_location = re.sub(r'[^a-zA-Z0-9\s\-\.,\(\)\/]', '', location)
+    
+    return safe_location if safe_location else None
 
 
 class ThicknessMeasurement(BaseModel):
@@ -161,7 +249,7 @@ Document to analyze:
                 raise
     
     def _parse_extraction_response(self, ollama_response: Dict[str, Any]) -> InspectionData:
-        """Parse Ollama response into structured data."""
+        """Parse Ollama response into structured data with security validation."""
         try:
             # Extract the response text from Ollama format
             response_text = ollama_response.get("response", "")
@@ -172,10 +260,11 @@ Document to analyze:
             # Parse JSON response
             extracted_json = json.loads(response_text)
             
+            # Apply security sanitization to extracted data
+            sanitized_data = self._sanitize_extracted_data(extracted_json)
+            
             # Validate and convert to InspectionData
-            # TODO: [SECURITY] Add input sanitization for extracted equipment tags
-            # Validate against known equipment naming conventions
-            return InspectionData.model_validate(extracted_json)
+            return InspectionData.model_validate(sanitized_data)
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
@@ -183,3 +272,105 @@ Document to analyze:
         except Exception as e:
             logger.error(f"Error parsing extraction response: {e}")
             return InspectionData()
+    
+    def _sanitize_extracted_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Sanitize extracted data for security and data integrity.
+        
+        Args:
+            data: Raw extracted data from AI
+            
+        Returns:
+            Sanitized data dictionary
+        """
+        sanitized = data.copy()
+        
+        # Sanitize equipment tag
+        if "equipment_tag" in sanitized and sanitized["equipment_tag"]:
+            sanitized_tag = sanitize_equipment_tag(sanitized["equipment_tag"])
+            if sanitized_tag:
+                sanitized["equipment_tag"] = sanitized_tag
+                logger.info(f"Sanitized equipment tag: {sanitized['equipment_tag']}")
+            else:
+                logger.warning(f"Rejected invalid equipment tag: {sanitized['equipment_tag']}")
+                sanitized["equipment_tag"] = None
+        
+        # Sanitize thickness measurements
+        if "thickness_measurements" in sanitized and isinstance(sanitized["thickness_measurements"], list):
+            sanitized_measurements = []
+            for measurement in sanitized["thickness_measurements"]:
+                if isinstance(measurement, dict):
+                    sanitized_measurement = measurement.copy()
+                    
+                    # Sanitize measurement location
+                    if "location" in sanitized_measurement:
+                        safe_location = sanitize_measurement_location(sanitized_measurement["location"])
+                        if safe_location:
+                            sanitized_measurement["location"] = safe_location
+                        else:
+                            logger.warning(f"Rejected invalid measurement location: {sanitized_measurement.get('location')}")
+                            continue  # Skip this measurement
+                    
+                    # Validate thickness value is reasonable
+                    if "thickness" in sanitized_measurement:
+                        thickness = sanitized_measurement["thickness"]
+                        try:
+                            thickness_float = float(thickness)
+                            # Reasonable thickness range for petroleum equipment: 0.001 to 10 inches
+                            if 0.001 <= thickness_float <= 10.0:
+                                sanitized_measurement["thickness"] = thickness_float
+                            else:
+                                logger.warning(f"Thickness value out of range: {thickness}")
+                                continue  # Skip this measurement
+                        except (ValueError, TypeError):
+                            logger.warning(f"Invalid thickness value: {thickness}")
+                            continue  # Skip this measurement
+                    
+                    sanitized_measurements.append(sanitized_measurement)
+            
+            sanitized["thickness_measurements"] = sanitized_measurements
+        
+        # Sanitize corrosion rates
+        if "corrosion_rates" in sanitized and isinstance(sanitized["corrosion_rates"], list):
+            sanitized_rates = []
+            for rate in sanitized["corrosion_rates"]:
+                try:
+                    rate_float = float(rate)
+                    # Reasonable corrosion rate range: 0 to 1 inch/year
+                    if 0.0 <= rate_float <= 1.0:
+                        sanitized_rates.append(rate_float)
+                    else:
+                        logger.warning(f"Corrosion rate out of range: {rate}")
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid corrosion rate: {rate}")
+            
+            sanitized["corrosion_rates"] = sanitized_rates
+        
+        # Sanitize recommendations (limit length, remove dangerous content)
+        if "recommendations" in sanitized and isinstance(sanitized["recommendations"], list):
+            sanitized_recommendations = []
+            for rec in sanitized["recommendations"]:
+                if isinstance(rec, str) and len(rec.strip()) > 0:
+                    # Limit length and sanitize content
+                    clean_rec = rec.strip()[:500]  # Max 500 chars per recommendation
+                    # Remove potentially dangerous patterns
+                    clean_rec = re.sub(r'[<>"\'\(\);\\]', '', clean_rec)
+                    if clean_rec:
+                        sanitized_recommendations.append(clean_rec)
+            
+            sanitized["recommendations"] = sanitized_recommendations
+        
+        # Validate confidence score
+        if "confidence_score" in sanitized:
+            try:
+                confidence = float(sanitized["confidence_score"])
+                if 0.0 <= confidence <= 1.0:
+                    sanitized["confidence_score"] = confidence
+                else:
+                    logger.warning(f"Confidence score out of range: {confidence}")
+                    sanitized["confidence_score"] = None
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid confidence score: {sanitized['confidence_score']}")
+                sanitized["confidence_score"] = None
+        
+        return sanitized

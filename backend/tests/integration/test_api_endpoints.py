@@ -2,7 +2,6 @@
 Integration tests for API endpoints.
 Tests the complete request/response cycle for safety-critical operations.
 """
-import pytest
 from fastapi.testclient import TestClient
 
 

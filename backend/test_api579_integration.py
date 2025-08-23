@@ -6,9 +6,6 @@ Tests the complete workflow from equipment creation to calculations.
 
 import asyncio
 import httpx
-import json
-import time
-from decimal import Decimal
 
 BASE_URL = "http://localhost:8001"
 
@@ -137,7 +134,7 @@ async def test_api579_integration():
         
         # Display latest calculation results
         latest_calc = calculations[0]  # Most recent
-        print(f"\n📊 Latest API 579 Assessment Results:")
+        print("\n📊 Latest API 579 Assessment Results:")
         print(f"   Calculation Date: {latest_calc['calculation_date']}")
         print(f"   RSF (Remaining Strength Factor): {latest_calc['rsf']}")
         print(f"   MAWP: {latest_calc['mawp']} psi")
@@ -149,7 +146,7 @@ async def test_api579_integration():
         rsf = float(latest_calc['rsf'])
         remaining_life = float(latest_calc['remaining_life'])
         
-        print(f"\n🔍 Safety Assessment:")
+        print("\n🔍 Safety Assessment:")
         if rsf < 0.80:
             print(f"   🚨 CRITICAL: RSF {rsf:.3f} - IMMEDIATE ACTION REQUIRED")
         elif rsf < 0.90:
@@ -165,19 +162,19 @@ async def test_api579_integration():
             print(f"   ✅ ACCEPTABLE: {remaining_life:.1f} years remaining life")
         
         # Step 5: Get detailed inspection record
-        print(f"\n5. Retrieving complete inspection record...")
+        print("\n5. Retrieving complete inspection record...")
         response = await client.get(f"{BASE_URL}/inspections/{inspection_id}")
         
         if response.status_code == 200:
             detailed_inspection = response.json()
-            print(f"✅ Complete inspection record retrieved")
+            print("✅ Complete inspection record retrieved")
             print(f"   Thickness readings: {detailed_inspection['thickness_readings_count']}")
             print(f"   Calculations: {detailed_inspection['calculations_count']}")
         
-        print(f"\n🎯 API 579 Integration Test Complete!")
+        print("\n🎯 API 579 Integration Test Complete!")
         print(f"   Equipment ID: {equipment_id}")
         print(f"   Inspection ID: {inspection_id}")
-        print(f"   Check the FastAPI logs to see background calculation details.")
+        print("   Check the FastAPI logs to see background calculation details.")
 
 if __name__ == "__main__":
     asyncio.run(test_api579_integration())

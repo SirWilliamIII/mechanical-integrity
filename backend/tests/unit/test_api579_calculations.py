@@ -4,8 +4,6 @@ Tests safety-critical calculations with high precision requirements.
 """
 import pytest
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import datetime
-import math
 
 from backend.tests.conftest import assert_decimal_equal
 

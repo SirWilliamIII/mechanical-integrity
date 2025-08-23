@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, validator
 
 from models.equipment import Equipment
-from core.config import settings
 from models.database import get_db
 
 router = APIRouter()
@@ -352,7 +351,7 @@ async def get_inspection_status(
     if not equipment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Equipment not found"
+            detail="Equipment not found"
         )
     
     # Calculate inspection intervals based on API standards

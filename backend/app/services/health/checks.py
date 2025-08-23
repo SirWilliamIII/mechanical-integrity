@@ -13,10 +13,7 @@ from datetime import datetime
 import asyncpg
 import redis.asyncio as redis
 import httpx
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.database import get_db
 from core.config import settings
 import logging
 
@@ -164,19 +161,19 @@ class HealthChecker:
             # Verify we can query
             version = await conn.fetchval("SELECT version()")
             
-            # Check for critical tables
+            # Check for critical tables in the mechanical integrity schema
             table_count = await conn.fetchval("""
                 SELECT COUNT(*) 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public' 
-                AND table_name IN ('equipment', 'inspection')
+                AND table_name IN ('equipment', 'inspection_records', 'thickness_readings', 'api579_calculations')
             """)
             
             await conn.close()
             
             response_time = (datetime.utcnow() - start).total_seconds() * 1000
             
-            if table_count >= 2:
+            if table_count >= 4:
                 return ServiceHealth(
                     name="postgresql",
                     status=ServiceStatus.HEALTHY,
@@ -188,16 +185,19 @@ class HealthChecker:
                     response_time_ms=response_time
                 )
             else:
-                # TODO: [SCHEMA] Update expected table list for complete database schema
-                # Current check only looks for 2 tables but full schema has more
-                # Should check for all tables: equipment, inspection_records, api579_calculations, etc.
                 return ServiceHealth(
                     name="postgresql",
                     status=ServiceStatus.DEGRADED,
                     message="Database connected but schema incomplete",
                     details={
                         "tables_found": int(table_count),
-                        "required_tables": ["equipment", "inspection"]
+                        "required_tables": [
+                            "equipment", 
+                            "inspection_records", 
+                            "thickness_readings", 
+                            "api579_calculations"
+                        ],
+                        "expected_total": 4
                     },
                     response_time_ms=response_time
                 )

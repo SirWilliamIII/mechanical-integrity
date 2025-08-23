@@ -5,24 +5,15 @@ Tests the complete end-to-end flow of inspection data processing,
 API 579 calculations, and result storage with full audit trail validation.
 """
 import pytest
-from decimal import Decimal, ROUND_HALF_UP
-from datetime import datetime, timedelta
-from uuid import uuid4
-import json
-from typing import Dict, List
+from decimal import Decimal
+from datetime import datetime
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from app.main import app
-from models.base import Base
-from models.database import get_db
 from models.equipment import Equipment, EquipmentType
-from models.inspection import InspectionRecord, ThicknessReading, API579Calculation
 from app.calculations.dual_path_calculator import API579Calculator
 from app.calculations.verification import CalculationVerifier
 from app.services.api579_service import API579Service
-from core.config import settings
 
 
 class TestSafetyCriticalCalculationPipeline:
@@ -32,7 +23,7 @@ class TestSafetyCriticalCalculationPipeline:
     def test_client(self):
         """Test client using actual PostgreSQL database for integration testing."""
         # Use the real database for integration tests
-        from models.database import SessionLocal, engine
+        from models.database import SessionLocal
         
         TestSession = SessionLocal
         
@@ -563,8 +554,9 @@ class TestCalculationVerificationIntegration:
             "corrosion_rate": Decimal('0.005')
         }
         
-        # Initialize service
-        service = API579Service()
+        # Initialize service (Note: This test uses a hypothetical interface)
+        from models.database import SessionLocal
+        service = API579Service(SessionLocal)
         
         # Perform complete FFS assessment
         assessment_result = service.perform_ffs_assessment(inspection_data)

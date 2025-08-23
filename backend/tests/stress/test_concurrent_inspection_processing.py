@@ -6,27 +6,23 @@ inspection data entries, calculations, and database operations.
 Critical for ensuring data integrity in production environments.
 """
 import pytest
-import asyncio
 import threading
 import time
 from decimal import Decimal
 from datetime import datetime, timedelta
 from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any
+from typing import Dict, Any
 import random
 import psutil
 import gc
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import IntegrityError, OperationalError
 
 from models.base import Base
 from models.equipment import Equipment, EquipmentType
 from models.inspection import InspectionRecord, ThicknessReading, API579Calculation
 from app.calculations.dual_path_calculator import API579Calculator
-from app.services.api579_service import API579Service
-from core.config import settings
 
 
 class TestConcurrentInspectionProcessing:
@@ -270,14 +266,14 @@ class TestConcurrentInspectionProcessing:
         success_rate = len(successful_results) / len(results) * 100
         avg_processing_time = sum(r["processing_time"] for r in successful_results) / len(successful_results)
         
-        print(f"\n📊 Stress Test Results:")
+        print("\n📊 Stress Test Results:")
         print(f"   Total Time: {total_time:.2f}s")
         print(f"   Success Rate: {success_rate:.1f}% ({len(successful_results)}/{len(results)})")
         print(f"   Average Processing Time: {avg_processing_time:.3f}s")
         print(f"   Throughput: {len(successful_results)/total_time:.1f} inspections/second")
         
         if failed_results:
-            print(f"   Failures:")
+            print("   Failures:")
             error_counts = {}
             for result in failed_results:
                 error_type = result["error_type"]
@@ -297,7 +293,7 @@ class TestConcurrentInspectionProcessing:
             calculation_count = session.query(API579Calculation).count()
             thickness_reading_count = session.query(ThicknessReading).count()
             
-            print(f"   Database Records Created:")
+            print("   Database Records Created:")
             print(f"     Inspections: {inspection_count}")
             print(f"     Calculations: {calculation_count}")
             print(f"     Thickness Readings: {thickness_reading_count}")
@@ -424,7 +420,7 @@ class TestConcurrentInspectionProcessing:
         successful_results = [r for r in results if r["success"]]
         failed_results = [r for r in results if not r["success"]]
         
-        print(f"\n🔗 Connection Pool Test Results:")
+        print("\n🔗 Connection Pool Test Results:")
         print(f"   Total Time: {total_time:.2f}s")
         print(f"   Successful: {len(successful_results)}")
         print(f"   Failed: {len(failed_results)}")

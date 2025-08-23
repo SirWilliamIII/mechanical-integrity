@@ -1,7 +1,6 @@
 # backend/tests/unit/test_imports.py
 """Test that all imports are working correctly."""
 import pytest
-import sys
 
 def test_backend_in_path():
     """Verify backend module is importable."""

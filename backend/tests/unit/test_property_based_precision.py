@@ -6,10 +6,7 @@ and precision requirements for API 579 compliance calculations.
 """
 import pytest
 from decimal import Decimal, ROUND_HALF_UP, getcontext
-from hypothesis import given, strategies as st, assume, example, settings, HealthCheck
-from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize
-import math
-from typing import Tuple
+from hypothesis import given, strategies as st, assume, settings, HealthCheck
 
 try:
     from app.calculations.dual_path_calculator import API579Calculator, VerifiedResult, CalculationDiscrepancyError

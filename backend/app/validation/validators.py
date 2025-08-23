@@ -4,12 +4,11 @@ API 579 Input Validators
 Validates all inputs against API 579 specified ranges with detailed
 error messages and regulatory references.
 """
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Optional, Union
 import logging
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 from app.calculations.constants import API579Constants, EquipmentType
 
@@ -287,7 +286,7 @@ class API579Validator:
                     valid=False,
                     field="pressure",
                     value=pressure_decimal,
-                    reason=f"Test pressure exceeds safe limit",
+                    reason="Test pressure exceeds safe limit",
                     api_reference="ASME Section VIII, UG-99",
                     action_required="Reduce test pressure to safe levels"
                 )
@@ -522,7 +521,7 @@ class API579Validator:
                     valid=False,
                     field="material_specification",
                     value=material_spec,
-                    reason=f"Carbon steel not suitable above 800°F",
+                    reason="Carbon steel not suitable above 800°F",
                     api_reference="API 579 Annex F",
                     action_required="Upgrade to high-temperature alloy"
                 )
@@ -603,7 +602,7 @@ class API579Validator:
                             valid=False,
                             field=param,
                             value=value,
-                            reason=f"Joint efficiency must be between 0 and 1",
+                            reason="Joint efficiency must be between 0 and 1",
                             api_reference="ASME Section VIII, UW-12"
                         ))
                     else:
@@ -617,7 +616,7 @@ class API579Validator:
                         valid=False,
                         field=param,
                         value=value,
-                        reason=f"Invalid efficiency value",
+                        reason="Invalid efficiency value",
                         api_reference="ASME Section VIII, UW-12"
                     ))
         

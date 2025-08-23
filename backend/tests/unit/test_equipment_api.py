@@ -3,13 +3,10 @@ Unit tests for Equipment API endpoints.
 Tests CRUD operations and safety validations.
 """
 import pytest
-from datetime import datetime, timedelta
-from decimal import Decimal
 
 from backend.tests.conftest import (
     assert_response_success, 
-    validate_equipment_safety,
-    assert_decimal_equal
+    validate_equipment_safety
 )
 
 

@@ -8,14 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 import logging
-from decimal import Decimal
 
 from core.config import settings
 from app.api import equipment, inspections, calculations, audit
 # TODO: [INTEGRATION_TESTS] Add missing API routers causing 404 errors in tests
 # Missing endpoints: corrosion analysis trends, batch operations, compliance reports
 from models.database import verify_db_connection
-from app.services.document_analyzer import DocumentAnalyzer
 from app.services.health import get_system_health
 
 # Configure logging
@@ -40,12 +38,12 @@ async def lifespan(app: FastAPI):
     print("🏭 MECHANICAL INTEGRITY AI SYSTEM")
     print("="*60)
     print(f"Version: {settings.APP_VERSION}")
-    print(f"Safety Factor: 0.9")
-    print(f"API Standards: 579-1, 510, 570, 653")
-    print(f"Compliance Mode: ENABLED")
+    print("Safety Factor: 0.9")
+    print("API Standards: 579-1, 510, 570, 653")
+    print("Compliance Mode: ENABLED")
     print("="*60)
-    print(f"📚 API Docs: http://localhost:8001/docs")
-    print(f"🔍 Health Check: http://localhost:8001/health")
+    print("📚 API Docs: http://localhost:8001/docs")
+    print("🔍 Health Check: http://localhost:8001/health")
     print("="*60 + "\n")
     
     # Verify critical services
@@ -58,11 +56,41 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("✅ PostgreSQL connected")
     
-    # TODO: [SERVICES] Implement Redis and Ollama health checks for production readiness
-    # Missing service checks prevent proper monitoring of background job queue and LLM processing
-    # Redis required for document processing queue, Ollama for inspection report analysis
-    logger.info("✅ Redis check skipped (not implemented)")
-    logger.info("✅ Ollama check skipped (not implemented)")
+    # Redis and Ollama health checks for production readiness
+    try:
+        from app.services.health.checks import HealthChecker
+        import asyncio
+        
+        async def check_services():
+            async with HealthChecker() as checker:
+                redis_health = await checker.check_redis()
+                ollama_health = await checker.check_ollama()
+                return redis_health, ollama_health
+        
+        redis_health, ollama_health = asyncio.run(check_services())
+        
+        # Log Redis status
+        if redis_health.status.value == "healthy":
+            logger.info("✅ Redis connected and operational")
+        elif redis_health.status.value == "degraded":
+            logger.warning(f"⚠️  Redis degraded: {redis_health.message}")
+        else:
+            logger.error(f"❌ Redis failed: {redis_health.message}")
+            services_ok = False
+        
+        # Log Ollama status
+        if ollama_health.status.value == "healthy":
+            logger.info("✅ Ollama LLM service operational")
+        elif ollama_health.status.value == "degraded":
+            logger.warning(f"⚠️  Ollama degraded: {ollama_health.message}")
+            # Ollama degraded is acceptable for basic operation
+        else:
+            logger.warning(f"⚠️  Ollama unavailable: {ollama_health.message}")
+            # Ollama failure is not critical for basic operation
+            
+    except Exception as e:
+        logger.error(f"❌ Service health check failed: {e}")
+        services_ok = False
     
     if not services_ok:
         logger.warning("⚠️  Some services unavailable - running in degraded mode")

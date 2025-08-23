@@ -4,8 +4,7 @@ Every extraction includes confidence and source mapping.
 """
 import json
 import re
-from typing import Dict, List, Optional, Tuple
-from decimal import Decimal
+from typing import Dict, List, Tuple
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime

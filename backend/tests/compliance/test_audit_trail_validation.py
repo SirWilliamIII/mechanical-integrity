@@ -11,18 +11,16 @@ operations in accordance with API 579 and regulatory requirements.
 import pytest
 from decimal import Decimal
 from datetime import datetime, timedelta
-from uuid import uuid4
 import json
 import hashlib
-from typing import Dict, List, Any, Optional
-from sqlalchemy import create_engine, text
+from typing import Dict, Any
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from models.base import Base
 from models.equipment import Equipment, EquipmentType
 from models.inspection import InspectionRecord, ThicknessReading, API579Calculation
-from app.calculations.dual_path_calculator import API579Calculator, VerifiedResult
-from app.calculations.verification import CalculationVerifier
+from app.calculations.dual_path_calculator import API579Calculator
 
 
 class TestAuditTrailCompliance:
@@ -426,7 +424,7 @@ class TestAuditTrailCompliance:
         # Check if updated_at was properly set to track modifications
         assert inspection.updated_at > inspection.created_at, "Update timestamp not properly maintained"
         
-        print(f"✅ Audit trail immutability behavior verified")
+        print("✅ Audit trail immutability behavior verified")
     
     def test_regulatory_compliance_report_generation(self, audit_db_session):
         """Test generation of regulatory compliance reports from audit trail."""
