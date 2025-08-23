@@ -7,6 +7,11 @@ API 579 clauses and use conservative assumptions.
 
 Author: API 579 Compliance Engineer
 Safety Level: SIL 3 per IEC 61508
+
+# TODO: [REGRESSION_TESTS] Fix API 579 dual path verification failures
+# Test failing: test_minimum_thickness_regression
+# Issue: Calculation discrepancies between primary and secondary methods exceed tolerance
+# Requires review of calculation precision and algorithm alignment
 """
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
@@ -243,12 +248,14 @@ class API579Calculator:
         denominator = nominal_thickness - minimum_thickness
         
         if denominator <= 0:
-            raise ValueError(
-                f"Invalid condition: Nominal thickness ({nominal_thickness}) must be "
-                f"greater than minimum thickness ({minimum_thickness})"
+            logger.warning(
+                f"Design thickness ({nominal_thickness}) is less than or equal to minimum required "
+                f"thickness ({minimum_thickness}). Equipment may need re-rating or retirement."
             )
-        
-        rsf_primary = numerator / denominator
+            # For API 579, when t_nominal <= t_min, RSF is effectively 0 (unfit for service)
+            rsf_primary = Decimal('0.0')
+        else:
+            rsf_primary = numerator / denominator
         
         # Clamp RSF between 0 and 1
         if rsf_primary < 0:

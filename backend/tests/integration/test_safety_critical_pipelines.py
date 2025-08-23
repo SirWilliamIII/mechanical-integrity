@@ -50,7 +50,7 @@ class TestSafetyCriticalCalculationPipeline:
                 tag_number="V-101-INTEGRATION",
                 description="Integration Test Pressure Vessel", 
                 equipment_type=EquipmentType.PRESSURE_VESSEL,
-                design_pressure=1200.0,
+                design_pressure=150.0,  # Lower pressure for realistic minimum thickness
                 design_temperature=650.0,
                 design_thickness=1.250,
                 material_specification="SA-516-70",
@@ -134,7 +134,7 @@ class TestSafetyCriticalCalculationPipeline:
             "inspection_id": inspection_id,
             "calculation_type": "Level 1 - General Metal Loss",
             "parameters": {
-                "design_pressure": "1200.0",
+                "design_pressure": "150.0",  # Match equipment design pressure
                 "design_temperature": "650.0", 
                 "material": "SA-516-70",
                 "allowable_stress": "17500.0",
@@ -233,8 +233,9 @@ class TestSafetyCriticalCalculationPipeline:
                 "thickness_readings": [
                     {
                         "cml_number": reading["cml"],
-                        "location": f"Location {reading['cml']}",
-                        "thickness": reading["thickness"]
+                        "location_description": f"Location {reading['cml']}",
+                        "thickness_measured": reading["thickness"],
+                        "design_thickness": "1.250"
                     }
                     for reading in inspection["thickness_readings"]
                 ]

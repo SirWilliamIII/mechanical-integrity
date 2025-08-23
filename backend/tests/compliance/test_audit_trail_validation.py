@@ -3,6 +3,10 @@ Audit trail validation tests for regulatory compliance.
 
 Validates that complete audit trails are maintained for all safety-critical
 operations in accordance with API 579 and regulatory requirements.
+
+# TODO: [COMPLIANCE_TESTS] Fix 3 failing audit trail validation tests
+# Current failures: thickness_reading_traceability, audit_trail_immutability, calculation_chain_custody
+# Root cause: Missing immutability enforcement and incomplete audit trail implementation
 """
 import pytest
 from decimal import Decimal
@@ -62,7 +66,7 @@ class TestAuditTrailCompliance:
         """Test that inspection records contain complete audit trail."""
         # Create inspection with full audit data
         inspection_data = {
-            "inspection_date": datetime.utcnow(),
+            "inspection_date": datetime.utcnow() - timedelta(days=1),
             "inspection_type": "UT",
             "inspector_name": "John Doe",
             "inspector_certification": "SNT-TC-1A Level III UT-2023-001",
@@ -132,7 +136,7 @@ class TestAuditTrailCompliance:
         # Create inspection
         inspection = InspectionRecord(
             equipment_id=equipment.id,
-            inspection_date=datetime.utcnow(),
+            inspection_date=datetime.utcnow() - timedelta(days=1),
             inspection_type="UT",
             inspector_name="Audit Tester",
             report_number="RPT-TRACE-001",
@@ -201,7 +205,7 @@ class TestAuditTrailCompliance:
         # Create inspection and reading
         inspection = InspectionRecord(
             equipment_id=equipment.id,
-            inspection_date=datetime.utcnow(),
+            inspection_date=datetime.utcnow() - timedelta(days=1),
             inspection_type="UT",
             inspector_name="Calculation Auditor",
             report_number="RPT-CALC-AUDIT",
@@ -613,7 +617,7 @@ class TestAuditTrailCompliance:
         # Create inspection with chain of custody
         inspection = InspectionRecord(
             equipment_id=equipment.id,
-            inspection_date=datetime.utcnow(),
+            inspection_date=datetime.utcnow() - timedelta(days=1),
             inspection_type="UT",
             inspector_name="Primary Inspector",
             inspector_certification="SNT-TC-1A Level III",

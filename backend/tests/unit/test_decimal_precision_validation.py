@@ -10,7 +10,7 @@ from decimal import Decimal, ROUND_HALF_UP, InvalidOperation, getcontext
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 from models.base import Base
@@ -97,7 +97,7 @@ class TestDecimalPrecisionConsistency:
         # Create inspection record
         inspection = InspectionRecord(
             equipment_id=equipment.id,
-            inspection_date=datetime.utcnow(),
+            inspection_date=datetime.utcnow() - timedelta(days=1),
             inspection_type="UT",
             inspector_name="Test Inspector",
             report_number="RPT-001",
@@ -142,8 +142,8 @@ class TestDecimalPrecisionConsistency:
             # Verify exact match (no precision loss)
             assert stored == original, f"Precision loss in thickness reading {i+1}: {stored} != {original}"
             
-            # Verify proper decimal places
-            assert stored.as_tuple().exponent >= -3, f"Insufficient precision in reading {i+1}"
+            # Verify proper decimal places (at least 3 decimal places)
+            assert stored.as_tuple().exponent <= -3, f"Insufficient precision in reading {i+1}"
     
     def test_api579_calculation_precision(self, test_db_session):
         """Test that API579Calculation maintains decimal precision."""
@@ -165,7 +165,7 @@ class TestDecimalPrecisionConsistency:
         
         inspection = InspectionRecord(
             equipment_id=equipment.id,
-            inspection_date=datetime.utcnow(),
+            inspection_date=datetime.utcnow() - timedelta(days=1),
             inspection_type="UT",
             inspector_name="Test Inspector", 
             report_number="RPT-002",
@@ -277,7 +277,7 @@ class TestDecimalPrecisionConsistency:
             
             inspection = InspectionRecord(
                 equipment_id=equipment.id,
-                inspection_date=datetime.utcnow(),
+                inspection_date=datetime.utcnow() - timedelta(days=1),
                 inspection_type="UT",
                 inspector_name="Test",
                 report_number=f"RPT-{uuid4().hex[:6]}",
@@ -295,8 +295,8 @@ class TestDecimalPrecisionConsistency:
             
             stored_value = retrieved.min_thickness_found
             
-            # For DECIMAL(6,3), should round to 3 decimal places
-            expected = value.quantize(Decimal('0.001'), rounding=ROUND_HALF_UP)
+            # For DECIMAL(7,4), should round to 4 decimal places
+            expected = value.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
             
             assert stored_value == expected, (
                 f"Database storage precision error: {value} stored as {stored_value}, "
@@ -389,16 +389,16 @@ class TestThicknessMeasurementAccuracy:
         count = Decimal(len(measurements))
         average = total / count
         
-        # Verify precision maintained
-        assert average.as_tuple().exponent >= -3, "Precision lost in average calculation"
+        # Verify precision maintained (at least 3 decimal places)
+        assert average.as_tuple().exponent <= -3, "Precision lost in average calculation"
         
         # Calculate standard deviation with Decimal precision
         variance_sum = sum((m - average) ** 2 for m in measurements)
         variance = variance_sum / count
         std_dev = variance.sqrt()
         
-        # Verify standard deviation maintains precision
-        assert std_dev.as_tuple().exponent >= -6, "Precision lost in std dev calculation"
+        # Verify standard deviation maintains precision (at least 6 decimal places)
+        assert std_dev.as_tuple().exponent <= -6, "Precision lost in std dev calculation"
     
     def test_corrosion_rate_calculation_precision(self):
         """Test corrosion rate calculation maintains required precision."""
@@ -442,9 +442,9 @@ class TestThicknessMeasurementAccuracy:
         max_reading = max(readings)
         range_spread = max_reading - min_reading
         
-        # Verify all calculations maintain precision
-        assert average.as_tuple().exponent >= -3
-        assert range_spread.as_tuple().exponent >= -3
+        # Verify all calculations maintain precision (at least 3 decimal places)
+        assert average.as_tuple().exponent <= -3
+        assert range_spread.as_tuple().exponent <= -3
         
         # Typical ultrasonic measurement should be consistent
         # Range should be ≤ 0.003" for good measurements

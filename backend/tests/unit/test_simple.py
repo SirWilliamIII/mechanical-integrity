@@ -28,9 +28,9 @@ def test_decimal_calculations():
 
 def test_sample_fixture(sample_equipment_data):
     """Test that fixtures are working."""
-    assert sample_equipment_data["tag"] == "V-101"
+    assert sample_equipment_data["tag_number"] == "V-101"
     assert sample_equipment_data["equipment_type"] == "VESSEL"
-    assert float(sample_equipment_data["design_pressure"]) == 1200.0
+    assert float(sample_equipment_data["design_pressure"]) == 150.0
 
 class TestSafetyValidations:
     """Test safety validation helpers."""

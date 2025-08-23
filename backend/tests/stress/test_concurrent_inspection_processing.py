@@ -41,7 +41,6 @@ class TestConcurrentInspectionProcessing:
             echo=False,
             pool_pre_ping=True,
             pool_recycle=3600,
-            max_overflow=20,
             pool_size=10
         )
         Base.metadata.create_all(engine)
@@ -96,7 +95,7 @@ class TestConcurrentInspectionProcessing:
         
         return {
             "equipment_tag": f"V-{vessel_number+100:03d}-STRESS",
-            "inspection_date": datetime.utcnow(),
+            "inspection_date": datetime.utcnow() - timedelta(days=1),
             "inspection_type": "UT",
             "inspector_name": f"Stress Tester {threading.current_thread().ident}",
             "inspector_certification": "UT-III-STRESS",
@@ -362,9 +361,7 @@ class TestConcurrentInspectionProcessing:
         small_pool_engine = create_engine(
             "sqlite:///:memory:",
             echo=False,
-            pool_size=2,  # Very small pool
-            max_overflow=1,
-            pool_timeout=1  # Short timeout
+            pool_size=2  # Very small pool
         )
         Base.metadata.create_all(small_pool_engine)
         

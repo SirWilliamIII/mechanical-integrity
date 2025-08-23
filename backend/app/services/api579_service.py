@@ -49,6 +49,10 @@ class API579Service:
         """
         Initialize service with database session.
         
+        # TODO: [BACKGROUND_TASKS] Fix session isolation issues for background calculations
+        # Background tasks need independent database sessions to avoid connection conflicts
+        # Current: Shared session causes test failures and production threading issues
+        
         Args:
             db_session: SQLAlchemy database session
         """
@@ -526,7 +530,7 @@ class API579Service:
                 "internal_radius": float(params["internal_radius"]),
                 "allowable_stress": float(params["allowable_stress"]),
                 "joint_efficiency": float(params["joint_efficiency"]),
-                "corrosion_rate": float(params.get("corrosion_rate", 0)),
+                "corrosion_rate": float(params.get("corrosion_rate") or 0),
                 "future_corrosion_allowance": float(params["future_corrosion_allowance"]),
                 "material_specification": params["material_specification"]
             }

@@ -94,11 +94,11 @@ class InspectionRecord(Base, UUIDMixin, TimestampMixin):
         comment="Array of thickness readings with CML locations"
     )
     min_thickness_found: Mapped[Decimal] = mapped_column(
-        DECIMAL(precision=6, scale=3),
+        DECIMAL(precision=7, scale=4),
         comment="Minimum thickness found - critical for fitness assessment"
     )
     avg_thickness: Mapped[Decimal] = mapped_column(
-        DECIMAL(precision=6, scale=3),
+        DECIMAL(precision=7, scale=4),
         comment="Average thickness across all CMLs"
     )
     
@@ -118,6 +118,9 @@ class InspectionRecord(Base, UUIDMixin, TimestampMixin):
         default=Decimal('75.00'),
         comment="Statistical confidence in corrosion rate (0-100%)"
     )
+    # TODO: [DATABASE] Remove hardcoded default confidence level from model
+    # Should be calculated dynamically based on measurement quality factors
+    # Default prevents proper confidence level variation in tests
     
     # ========================================================================
     # FINDINGS AND RECOMMENDATIONS
@@ -225,15 +228,15 @@ class ThicknessReading(Base, UUIDMixin, TimestampMixin):
     # THICKNESS MEASUREMENTS - DECIMAL PRECISION REQUIRED
     # ========================================================================
     thickness_measured: Mapped[Decimal] = mapped_column(
-        DECIMAL(precision=6, scale=3),
-        comment="Current measured thickness in inches (±0.001 precision)"
+        DECIMAL(precision=7, scale=4),
+        comment="Current measured thickness in inches (±0.0001 precision)"
     )
     previous_thickness: Mapped[Optional[Decimal]] = mapped_column(
-        DECIMAL(precision=6, scale=3),
+        DECIMAL(precision=7, scale=4),
         comment="Previous inspection thickness for corrosion rate calculation"
     )
     design_thickness: Mapped[Decimal] = mapped_column(
-        DECIMAL(precision=6, scale=3),
+        DECIMAL(precision=7, scale=4),
         comment="Original design thickness at this location"
     )
     
@@ -241,11 +244,11 @@ class ThicknessReading(Base, UUIDMixin, TimestampMixin):
     # CALCULATED VALUES
     # ========================================================================
     metal_loss_total: Mapped[Optional[Decimal]] = mapped_column(
-        DECIMAL(precision=6, scale=3),
+        DECIMAL(precision=7, scale=4),
         comment="Total metal loss from original thickness (inches)"
     )
     metal_loss_period: Mapped[Optional[Decimal]] = mapped_column(
-        DECIMAL(precision=6, scale=3),
+        DECIMAL(precision=7, scale=4),
         comment="Metal loss since previous inspection (inches)"
     )
     corrosion_rate_local: Mapped[Optional[Decimal]] = mapped_column(
@@ -266,7 +269,7 @@ class ThicknessReading(Base, UUIDMixin, TimestampMixin):
         comment="Surface condition affecting measurement accuracy"
     )
     temperature_compensation: Mapped[Optional[Decimal]] = mapped_column(
-        DECIMAL(precision=6, scale=3),
+        DECIMAL(precision=7, scale=4),
         comment="Temperature compensation applied to measurement"
     )
 
@@ -324,7 +327,7 @@ class API579Calculation(Base, UUIDMixin, TimestampMixin):
     # CALCULATION RESULTS
     # ========================================================================
     minimum_required_thickness: Mapped[Decimal] = mapped_column(
-        DECIMAL(precision=6, scale=3),
+        DECIMAL(precision=7, scale=4),
         comment="Minimum required thickness (t_min) in inches"
     )
     remaining_strength_factor: Mapped[Decimal] = mapped_column(

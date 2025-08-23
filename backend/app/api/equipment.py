@@ -81,21 +81,67 @@ class EquipmentUpdate(BaseModel):
         }
 
 
-class EquipmentResponse(EquipmentBase):
-    """Response schema including calculated fields."""
+class EquipmentResponse(BaseModel):
+    """Response schema including calculated fields that matches database model."""
     id: UUID
+    tag_number: str
+    name: str  # Mapped from description in database
+    equipment_type: str
+    design_pressure: Decimal
+    design_temperature: Decimal
+    material_specification: str
+    design_thickness: Decimal
+    location: Optional[str] = None
+    manufacturer: Optional[str] = None
+    serial_number: Optional[str] = None
+    year_built: Optional[int] = None
     created_at: datetime
     updated_at: datetime
-    last_inspection_date: Optional[datetime]
-    next_inspection_due: Optional[datetime]
-    criticality: str
+    last_inspection_date: Optional[datetime] = None
+    next_inspection_due: Optional[datetime] = None
+    criticality: str = "MEDIUM"
     
     # Calculated fields
     days_until_inspection: Optional[int] = None
     inspection_overdue: bool = False
     
+    @classmethod
+    def from_db_model(cls, db_equipment):
+        """Convert database model to API response, mapping fields properly."""
+        # Map equipment type back to API format
+        equipment_type_reverse_mapping = {
+            "pressure_vessel": "VESSEL",
+            "storage_tank": "TANK", 
+            "piping": "PIPING",
+            "heat_exchanger": "HEAT_EXCHANGER"
+        }
+        
+        api_equipment_type = equipment_type_reverse_mapping.get(
+            db_equipment.equipment_type, 
+            db_equipment.equipment_type
+        )
+        
+        return cls(
+            id=db_equipment.id,
+            tag_number=db_equipment.tag_number,
+            name=db_equipment.description,  # Map description to name
+            equipment_type=api_equipment_type,
+            design_pressure=db_equipment.design_pressure,
+            design_temperature=db_equipment.design_temperature,
+            material_specification=db_equipment.material_specification,
+            design_thickness=db_equipment.design_thickness,
+            location=getattr(db_equipment, 'location', None),
+            manufacturer=getattr(db_equipment, 'manufacturer', None),
+            serial_number=getattr(db_equipment, 'serial_number', None),
+            year_built=getattr(db_equipment, 'year_built', None),
+            created_at=db_equipment.created_at,
+            updated_at=db_equipment.updated_at,
+            last_inspection_date=getattr(db_equipment, 'last_inspection_date', None),
+            next_inspection_due=getattr(db_equipment, 'next_inspection_due', None),
+            criticality=getattr(db_equipment, 'criticality', 'MEDIUM')
+        )
+    
     class Config:
-        from_attributes = True
         json_encoders = {
             Decimal: lambda v: str(v),
             UUID: lambda v: str(v)
@@ -142,8 +188,31 @@ async def create_equipment(
             detail=f"Equipment with tag '{equipment.tag_number}' already exists"
         )
     
-    # Create equipment
-    db_equipment = Equipment(**equipment.dict())
+    # Create equipment - map API schema to database model
+    equipment_data = equipment.model_dump()
+    
+    # Map fields from API schema to database model fields
+    equipment_type_mapping = {
+        "VESSEL": "pressure_vessel",
+        "TANK": "storage_tank", 
+        "PIPING": "piping",
+        "HEAT_EXCHANGER": "heat_exchanger"
+    }
+    
+    db_data = {
+        "tag_number": equipment_data["tag_number"],
+        "description": equipment_data["name"],  # Map name to description
+        "equipment_type": equipment_type_mapping.get(equipment_data["equipment_type"], equipment_data["equipment_type"]),
+        "design_pressure": equipment_data["design_pressure"],
+        "design_temperature": equipment_data["design_temperature"],
+        "material_specification": equipment_data["material_specification"],
+        "design_thickness": equipment_data["design_thickness"],
+        "service_description": equipment_data.get("service_description", "Unknown"),
+        "installation_date": datetime.fromisoformat(equipment_data["installation_date"].replace("Z", "+00:00")) if equipment_data.get("installation_date") else datetime.utcnow(),
+        "corrosion_allowance": equipment_data.get("corrosion_allowance", Decimal("0.125"))
+    }
+    
+    db_equipment = Equipment(**db_data)
     db.add(db_equipment)
     db.commit()
     db.refresh(db_equipment)
@@ -151,7 +220,7 @@ async def create_equipment(
     # Log creation for audit trail
     print(f"✅ Created equipment: {equipment.tag_number} - {equipment.name}")
     
-    return db_equipment
+    return EquipmentResponse.from_db_model(db_equipment)
 
 
 @router.get("/", response_model=List[EquipmentResponse])
@@ -185,7 +254,8 @@ async def list_equipment(
         Equipment.next_inspection_due.asc()
     )
     
-    return query.offset(skip).limit(limit).all()
+    equipment_list = query.offset(skip).limit(limit).all()
+    return [EquipmentResponse.from_db_model(eq) for eq in equipment_list]
 
 
 @router.get("/{equipment_id}", response_model=EquipmentResponse)
@@ -204,7 +274,7 @@ async def get_equipment(
             detail=f"Equipment with id '{equipment_id}' not found"
         )
     
-    return equipment
+    return EquipmentResponse.from_db_model(equipment)
 
 
 @router.get("/tag/{tag_number}", response_model=EquipmentResponse)
@@ -223,7 +293,7 @@ async def get_equipment_by_tag(
             detail=f"Equipment with tag '{tag_number}' not found"
         )
     
-    return equipment
+    return EquipmentResponse.from_db_model(equipment)
 
 
 @router.patch("/{equipment_id}", response_model=EquipmentResponse)
@@ -258,7 +328,7 @@ async def update_equipment(
     db.commit()
     db.refresh(equipment)
     
-    return equipment
+    return EquipmentResponse.from_db_model(equipment)
 
 
 @router.get("/{equipment_id}/inspection-status")
