@@ -17,6 +17,40 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 
+# ========================================================================
+# SECURITY PATTERNS AND CONSTANTS
+# ========================================================================
+
+# Common malicious patterns to detect in all input sanitization
+SECURITY_PATTERNS = {
+    'injection_chars': r'[<>"\'\(\);]',  # HTML/SQL injection characters  
+    'hex_encoded': r'\\x[0-9a-fA-F]{2}',  # Hex-encoded characters
+    'url_encoded': r'%[0-9a-fA-F]{2}',  # URL-encoded characters
+    'backslash_escapes': r'\\\w+',  # Backslash escapes
+    'variable_interpolation': r'\$\{.*\}',  # Variable interpolation
+    'script_tags': r'<script[^>]*>.*?</script>',  # Script tags
+    'sql_keywords': r'\b(DROP|DELETE|INSERT|UPDATE|SELECT|UNION|ALTER)\b',  # SQL keywords
+}
+
+
+def _check_security_patterns(text: str, context: str) -> bool:
+    """
+    Check text against common malicious patterns.
+    
+    Args:
+        text: Text to validate
+        context: Context for logging (e.g., 'equipment tag', 'location')
+        
+    Returns:
+        True if safe, False if malicious patterns detected
+    """
+    for pattern_name, pattern in SECURITY_PATTERNS.items():
+        if re.search(pattern, text, re.IGNORECASE):
+            logger.error(f"Malicious pattern '{pattern_name}' detected in {context}: {text[:50]}...")
+            return False
+    return True
+
+
 def sanitize_equipment_tag(tag: str) -> Optional[str]:
     """
     Sanitize and validate equipment tag names for security.
@@ -59,20 +93,9 @@ def sanitize_equipment_tag(tag: str) -> Optional[str]:
     # Convert to uppercase for consistency
     sanitized = tag.upper()
     
-    # Additional security checks
-    # Prevent common injection patterns
-    malicious_patterns = [
-        r'[<>"\'\(\);]',  # HTML/SQL injection characters
-        r'\\x[0-9a-fA-F]{2}',  # Hex-encoded characters
-        r'%[0-9a-fA-F]{2}',  # URL-encoded characters
-        r'\\\w+',  # Backslash escapes
-        r'\$\{.*\}',  # Variable interpolation
-    ]
-    
-    for pattern in malicious_patterns:
-        if re.search(pattern, sanitized):
-            logger.error(f"Malicious pattern detected in equipment tag: {tag}")
-            return None
+    # Security validation using centralized patterns
+    if not _check_security_patterns(sanitized, "equipment tag"):
+        return None
     
     return sanitized
 

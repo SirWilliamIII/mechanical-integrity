@@ -14,12 +14,11 @@ Key Safety Features:
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from uuid import UUID
 import logging
-import statistics
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from pydantic import BaseModel, Field, field_validator, ConfigDict
@@ -34,13 +33,78 @@ from models import (
     InspectionType,
     CorrosionType
 )
-from app.services.document_analyzer import DocumentAnalyzer
-from app.calculations.dual_path_calculator import API579Calculator
 
 # Configure logger for audit trail
 logger = logging.getLogger("mechanical_integrity.inspections")
 
 router = APIRouter(tags=["Inspections"])
+
+
+# ========================================================================
+# HELPER FUNCTIONS FOR CALCULATIONS
+# ========================================================================
+
+def _calculate_confidence_level(
+    thickness_reading_count: int,
+    has_historical_data: bool = False
+) -> Decimal:
+    """
+    Calculate inspection confidence level based on reading count and historical data.
+    
+    Args:
+        thickness_reading_count: Number of thickness measurements taken
+        has_historical_data: Whether previous inspection data is available
+        
+    Returns:
+        Confidence level as Decimal (0-100)
+    """
+    base_confidence = Decimal("75.0")
+    
+    # Increase confidence with more readings
+    if thickness_reading_count >= 10:
+        base_confidence = Decimal("90.0")
+    elif thickness_reading_count >= 5:
+        base_confidence = Decimal("85.0")
+    elif thickness_reading_count >= 3:
+        base_confidence = Decimal("80.0")
+    
+    # Adjust for historical data availability
+    if has_historical_data:
+        base_confidence = min(base_confidence + Decimal("5.0"), Decimal("95.0"))
+    else:
+        base_confidence = max(base_confidence - Decimal("5.0"), Decimal("60.0"))
+    
+    return base_confidence
+
+
+def _calculate_corrosion_metrics(
+    current_min_thickness: Decimal,
+    previous_inspection: Optional[InspectionRecord],
+    current_inspection_date: datetime
+) -> tuple[Optional[Decimal], bool]:
+    """
+    Calculate corrosion rate from historical inspection data.
+    
+    Args:
+        current_min_thickness: Current minimum thickness measurement
+        previous_inspection: Previous inspection record if available
+        current_inspection_date: Date of current inspection
+        
+    Returns:
+        Tuple of (corrosion_rate, has_historical_data)
+    """
+    if not previous_inspection or not previous_inspection.min_thickness_found:
+        return None, False
+    
+    thickness_loss = previous_inspection.min_thickness_found - current_min_thickness
+    time_years = (current_inspection_date - previous_inspection.inspection_date).days / Decimal("365.25")
+    
+    if time_years > 0 and thickness_loss > 0:
+        corrosion_rate = thickness_loss / time_years
+        logger.info(f"Calculated corrosion rate: {corrosion_rate} in/year over {time_years} years")
+        return corrosion_rate, True
+    
+    return None, True  # Has historical data but no measurable corrosion
 
 
 # ========================================================================
@@ -373,7 +437,8 @@ def get_equipment_by_id_or_tag(equipment_identifier: str, db: Session) -> Equipm
         equipment = db.query(Equipment).filter(Equipment.id == str(equipment_identifier)).first()
         if equipment:
             return equipment
-    except:
+    except (ValueError, SQLAlchemyError):
+        # Invalid UUID format or database error - fall through to tag lookup
         pass
     
     # Try tag number
@@ -431,29 +496,20 @@ async def create_inspection_record(
         min_thickness = min(thickness_values)
         avg_thickness = sum(thickness_values) / len(thickness_values)
         
-        # Calculate corrosion rate from previous inspections
-        corrosion_rate = None
-        # TODO: [TEST_FAILURE] Fix hardcoded confidence level - should vary based on thickness reading count
-        # Test failing: test_confidence_level_based_on_readings expects dynamic calculation
-        # Current: Always 75.0, Expected: Higher confidence with more readings
-        confidence_level = Decimal("75.0")  # Default confidence
-        
+        # Calculate corrosion metrics from historical data
         previous_inspection = db.query(InspectionRecord).filter(
             InspectionRecord.equipment_id == str(equipment.id),
             InspectionRecord.inspection_date < inspection_data.inspection_date
         ).order_by(InspectionRecord.inspection_date.desc()).first()
         
-        if previous_inspection and previous_inspection.min_thickness_found:
-            thickness_loss = previous_inspection.min_thickness_found - min_thickness
-            time_years = (inspection_data.inspection_date - previous_inspection.inspection_date).days / Decimal("365.25")
-            
-            if time_years > 0 and thickness_loss > 0:
-                corrosion_rate = thickness_loss / time_years
-                # TODO: [ENHANCEMENT] Implement comprehensive confidence calculation algorithm
-                # Should consider: reading count, measurement consistency, time span, inspector certification
-                confidence_level = Decimal("85.0") if len(thickness_values) >= 5 else Decimal("70.0")
-                
-                logger.info(f"Calculated corrosion rate: {corrosion_rate} in/year over {time_years} years")
+        corrosion_rate, has_historical_data = _calculate_corrosion_metrics(
+            min_thickness, previous_inspection, inspection_data.inspection_date
+        )
+        
+        # Calculate confidence level based on reading count and historical data
+        confidence_level = _calculate_confidence_level(
+            len(thickness_values), has_historical_data
+        )
         
         # Create main inspection record
         db_inspection = InspectionRecord(

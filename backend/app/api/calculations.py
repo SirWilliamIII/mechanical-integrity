@@ -24,6 +24,10 @@ logger = logging.getLogger("mechanical_integrity.calculations")
 router = APIRouter(tags=["Calculations"])
 
 
+# ========================================================================
+# REQUEST/RESPONSE MODELS
+# ========================================================================
+
 class API579CalculationRequest(BaseModel):
     """Request schema for API 579 calculations."""
     model_config = ConfigDict(
@@ -81,6 +85,49 @@ class API579CalculationResult(BaseModel):
     level_2_required: Optional[bool] = None
 
 
+# ========================================================================
+# HELPER FUNCTIONS
+# ========================================================================
+
+def _build_calculation_response(
+    calculation_record: API579Calculation, 
+    level_2_required: bool
+) -> API579CalculationResult:
+    """
+    Build API579CalculationResult response with proper precision preservation.
+    
+    Args:
+        calculation_record: Database calculation record
+        level_2_required: Whether Level 2 assessment is required
+        
+    Returns:
+        Formatted response with string-preserved decimal precision
+    """
+    return API579CalculationResult(
+        id=calculation_record.id,
+        inspection_record_id=calculation_record.inspection_record_id,
+        calculation_type=calculation_record.calculation_type,
+        calculation_method=calculation_record.calculation_method,
+        performed_by=calculation_record.performed_by,
+        minimum_required_thickness=str(calculation_record.minimum_required_thickness),
+        remaining_strength_factor=str(calculation_record.remaining_strength_factor),
+        maximum_allowable_pressure=str(calculation_record.maximum_allowable_pressure),
+        remaining_life_years=str(calculation_record.remaining_life_years) if calculation_record.remaining_life_years else None,
+        fitness_for_service=calculation_record.fitness_for_service,
+        risk_level=calculation_record.risk_level,
+        recommendations=calculation_record.recommendations,
+        warnings=calculation_record.warnings,
+        confidence_score=str(calculation_record.confidence_score),
+        input_parameters=calculation_record.input_parameters,
+        assumptions=calculation_record.assumptions or {},
+        level_2_required=level_2_required
+    )
+
+
+# ========================================================================
+# API ENDPOINTS
+# ========================================================================
+
 @router.post("/api579", 
             response_model=API579CalculationResult,
             status_code=status.HTTP_201_CREATED,
@@ -118,7 +165,7 @@ async def perform_api579_calculation(
         api579_service = API579Service(SessionLocal)
         
         # Perform calculation
-        calculation_result = await api579_service.perform_complete_assessment(
+        await api579_service.perform_complete_assessment(
             inspection_id=str(calculation_request.inspection_id),
             performed_by=calculation_request.performed_by,
             calculation_level="Level 1"
@@ -145,26 +192,8 @@ async def perform_api579_calculation(
             f"RSF: {rsf}, Level 2 Required: {level_2_required}"
         )
         
-        # Prepare response
-        response_data = API579CalculationResult(
-            id=calculation_record.id,
-            inspection_record_id=calculation_record.inspection_record_id,
-            calculation_type=calculation_record.calculation_type,
-            calculation_method=calculation_record.calculation_method,
-            performed_by=calculation_record.performed_by,
-            minimum_required_thickness=str(calculation_record.minimum_required_thickness),
-            remaining_strength_factor=str(calculation_record.remaining_strength_factor),
-            maximum_allowable_pressure=str(calculation_record.maximum_allowable_pressure),
-            remaining_life_years=str(calculation_record.remaining_life_years) if calculation_record.remaining_life_years else None,
-            fitness_for_service=calculation_record.fitness_for_service,
-            risk_level=calculation_record.risk_level,
-            recommendations=calculation_record.recommendations,
-            warnings=calculation_record.warnings,
-            confidence_score=str(calculation_record.confidence_score),
-            input_parameters=calculation_record.input_parameters,
-            assumptions=calculation_record.assumptions or {},
-            level_2_required=level_2_required
-        )
+        # Prepare response with preserved precision
+        response_data = _build_calculation_response(calculation_record, level_2_required)
         
         return response_data
         
