@@ -436,7 +436,7 @@ class TestConcurrentInspectionProcessing:
     @pytest.mark.stress
     def test_calculation_precision_under_concurrent_load(self, stress_test_db):
         """Test that calculation precision is maintained under concurrent load."""
-        SessionFactory = sessionmaker(bind=stress_test_db)
+        sessionmaker(bind=stress_test_db)
         calculator = API579Calculator()
         
         # Test parameters

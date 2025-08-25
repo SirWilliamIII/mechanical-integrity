@@ -135,9 +135,7 @@ class TestSafetyCriticalIssuesSummary:
         try:
             # Simulate the problematic import
             exec("from models import equipment as models")
-            import_succeeded = True
         except ImportError as e:
-            import_succeeded = False
             print(f"   Import error (expected): {e}")
         
         # In current test environment, the import might work due to path manipulation

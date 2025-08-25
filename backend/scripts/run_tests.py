@@ -397,7 +397,7 @@ def main():
             print(f"\n{Colors.RED}❌ Failing fast due to test failures in {category}{Colors.END}")
             break
     
-    total_time = time.time() - start_time
+    time.time() - start_time
     
     # Generate report
     generate_test_report(results, args)

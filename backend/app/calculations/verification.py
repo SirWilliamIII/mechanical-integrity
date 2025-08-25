@@ -160,7 +160,6 @@ class CalculationVerifier:
             is_valid = False
         
         # Check corrosion rate reasonableness
-        typical_rates = self.constants.TYPICAL_CORROSION_RATES
         max_expected = Decimal("0.050")  # 50 mpy is very high
         
         if corrosion_rate > max_expected:

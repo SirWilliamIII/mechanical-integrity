@@ -394,7 +394,7 @@ class TestAPI579RegressionSuite:
     
     def test_verification_failure_behavior_regression(self):
         """Test that verification failure behavior is consistent."""
-        calculator = API579Calculator()
+        API579Calculator()
         
         # Create a scenario that should trigger verification failure
         # by manually setting an unreasonable tolerance

@@ -439,7 +439,7 @@ class TestDualPathVerificationProperties:
             assert result1.value == result2.value, f"Inconsistent RSF: {result1.value} != {result2.value}"
             
             # Verify the calculation makes engineering sense
-            expected_range = (current_thickness - nominal_thickness) / (minimum_thickness - nominal_thickness)
+            (current_thickness - nominal_thickness) / (minimum_thickness - nominal_thickness)
             rsf = result1.value
             
             # RSF should be within reasonable bounds given the input relationships

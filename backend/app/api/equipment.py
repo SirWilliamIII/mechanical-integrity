@@ -9,7 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, field_serializer, ConfigDict, computed_field
 
 from models.equipment import Equipment
 from models.database import get_db
@@ -36,10 +36,8 @@ class EquipmentBase(BaseModel):
     serial_number: Optional[str] = None
     year_built: Optional[int] = Field(None, ge=1900, le=datetime.now().year)
     
-    # TODO: [DEPRECATION] Migrate Pydantic v1 @validator to v2 @field_validator
-    # Pydantic v2.0+ deprecates @validator in favor of @field_validator
-    # Replace with: @field_validator('design_pressure', mode='before')
-    @validator('design_pressure')
+    @field_validator('design_pressure', mode='after')
+    @classmethod
     def validate_pressure(cls, v):
         """Ensure pressure is within safe operating limits."""
         if v > Decimal('5000'):
@@ -50,13 +48,12 @@ class EquipmentBase(BaseModel):
     # TODO: [VALIDATION] Add comprehensive material-pressure-temperature validation
     # Cross-reference material specs with ASME pressure-temperature rating charts
     
-    # TODO: [DEPRECATION] Replace deprecated json_encoders with Pydantic v2 serializers
-    # Pydantic v2.0+ deprecates class-based Config and json_encoders
-    # Use model_config = ConfigDict() and @field_serializer instead
-    class Config:
-        json_encoders = {
-            Decimal: lambda v: str(v)
-        }
+    model_config = ConfigDict()
+    
+    @field_serializer('design_pressure', 'design_temperature', when_used='json')
+    def serialize_decimal_fields(self, value: Decimal) -> str:
+        """Convert Decimal fields to string for JSON serialization."""
+        return str(value) if value is not None else None
 
 
 class EquipmentCreate(EquipmentBase):
@@ -74,10 +71,12 @@ class EquipmentUpdate(BaseModel):
     last_inspection_date: Optional[datetime] = None
     next_inspection_due: Optional[datetime] = None
     
-    class Config:
-        json_encoders = {
-            Decimal: lambda v: str(v)
-        }
+    model_config = ConfigDict()
+    
+    @field_serializer('operating_pressure', 'operating_temperature', when_used='json')
+    def serialize_decimal_fields(self, value: Optional[Decimal]) -> Optional[str]:
+        """Convert Decimal fields to string for JSON serialization."""
+        return str(value) if value is not None else None
 
 
 class EquipmentResponse(BaseModel):
@@ -101,8 +100,7 @@ class EquipmentResponse(BaseModel):
     criticality: str = "MEDIUM"
     
     # Calculated fields
-    days_until_inspection: Optional[int] = None
-    inspection_overdue: bool = False
+# days_until_inspection and inspection_overdue are now computed fields
     
     @classmethod
     def from_db_model(cls, db_equipment):
@@ -140,25 +138,28 @@ class EquipmentResponse(BaseModel):
             criticality=getattr(db_equipment, 'criticality', 'MEDIUM')
         )
     
-    class Config:
-        json_encoders = {
-            Decimal: lambda v: str(v),
-            UUID: lambda v: str(v)
-        }
+    model_config = ConfigDict()
     
-    @validator('days_until_inspection', always=True)
-    def calculate_days_until_inspection(cls, v, values):
+    @field_serializer('id', when_used='json')
+    def serialize_uuid(self, value: UUID) -> str:
+        """Convert UUID to string for JSON serialization."""
+        return str(value) if value is not None else None
+    
+    @computed_field
+    @property
+    def days_until_inspection(self) -> Optional[int]:
         """Calculate days until next inspection."""
-        if 'next_inspection_due' in values and values['next_inspection_due']:
-            delta = values['next_inspection_due'] - datetime.now()
+        if self.next_inspection_due:
+            delta = self.next_inspection_due - datetime.now()
             return delta.days
         return None
     
-    @validator('inspection_overdue', always=True)
-    def check_overdue(cls, v, values):
+    @computed_field
+    @property  
+    def inspection_overdue(self) -> bool:
         """Flag overdue inspections."""
-        if 'days_until_inspection' in values and values['days_until_inspection'] is not None:
-            return values['days_until_inspection'] < 0
+        if self.days_until_inspection is not None:
+            return self.days_until_inspection < 0
         return False
 
 

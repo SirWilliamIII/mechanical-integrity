@@ -26,9 +26,9 @@
             <Button 
               label="Equipment Registry" 
               icon="pi pi-database" 
+              @click="$router.push('/equipment')"
               class="action-button"
               severity="secondary"
-              disabled
             />
             <Button 
               label="Generate Report" 
@@ -144,8 +144,7 @@ import EquipmentSummary from '@/components/dashboard/EquipmentSummary.vue'
 const router = useRouter()
 
 function handleViewEquipment() {
-  // Navigate to equipment list view when implemented
-  console.log('Navigate to equipment list')
+  router.push('/equipment')
 }
 </script>
 

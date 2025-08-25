@@ -283,7 +283,7 @@ Respond in JSON format:
 # Quick test function
 async def test_extractor():
     """Test the extractor with a sample PDF."""
-    extractor = InspectionDocumentExtractor()
+    InspectionDocumentExtractor()
     
     # You'll need to provide a real PDF path
     # results = await extractor.extract_from_pdf("/path/to/inspection.pdf")
