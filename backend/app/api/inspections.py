@@ -21,7 +21,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, field_serializer, ConfigDict
 from pydantic.types import UUID4
 
 from models.database import get_db
@@ -151,9 +151,13 @@ class InsufficientDataError(HTTPException):
 class ThicknessReadingCreate(BaseModel):
     """Individual thickness measurement with safety-critical validation."""
     model_config = ConfigDict(
-        json_encoders={Decimal: lambda v: str(v)},
         str_strip_whitespace=True
     )
+    
+    @field_serializer('thickness_measured', 'design_thickness', 'previous_thickness', when_used='json')
+    def serialize_decimal_fields(self, value: Optional[Decimal]) -> Optional[str]:
+        """Convert Decimal thickness fields to string for JSON serialization."""
+        return str(value) if value is not None else None
     
     cml_number: str = Field(
         ..., 
@@ -230,7 +234,6 @@ class ThicknessReadingCreate(BaseModel):
 class InspectionRecordCreate(BaseModel):
     """Schema for creating inspection records with comprehensive validation."""
     model_config = ConfigDict(
-        json_encoders={Decimal: lambda v: str(v)},
         str_strip_whitespace=True
     )
     
@@ -323,13 +326,24 @@ class InspectionRecordCreate(BaseModel):
 class InspectionRecordResponse(BaseModel):
     """Response schema with calculated fields and audit information."""
     model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={
-            Decimal: lambda v: str(v),
-            UUID: lambda v: str(v),
-            datetime: lambda v: v.isoformat()
-        }
+        from_attributes=True
     )
+    
+    @field_serializer('min_thickness_found', 'avg_thickness', 'corrosion_rate_calculated', 
+                     'confidence_level', 'ai_confidence_score', when_used='json')
+    def serialize_decimal_fields(self, value: Optional[Decimal]) -> Optional[str]:
+        """Convert Decimal fields to string for JSON serialization."""
+        return str(value) if value is not None else None
+    
+    @field_serializer('id', when_used='json')
+    def serialize_uuid(self, value: UUID) -> str:
+        """Convert UUID to string for JSON serialization."""
+        return str(value)
+    
+    @field_serializer('inspection_date', 'verified_at', 'created_at', 'updated_at', when_used='json')
+    def serialize_datetime(self, value: Optional[datetime]) -> Optional[str]:
+        """Convert datetime to ISO format for JSON serialization."""
+        return value.isoformat() if value is not None else None
     
     id: UUID4
     equipment_id: str
@@ -989,9 +1003,11 @@ async def analyze_corrosion(
         corrosion_rate = None
         remaining_life = None
         calculation_method = "Single point analysis - no historical data"
-        # TODO: [CONSISTENCY] Standardize confidence level calculation across all endpoints
-        # This hardcoded value conflicts with dynamic calculation in create_inspection
-        confidence_level = 50.0
+        
+        # Calculate confidence level based on thickness readings and historical data
+        thickness_reading_count = len(current_inspection.thickness_readings_detailed) if current_inspection.thickness_readings_detailed else 0
+        has_historical_data = len(historical_inspections) > 0
+        confidence_level = float(_calculate_confidence_level(thickness_reading_count, has_historical_data))
         
         # Calculate corrosion rate if historical data exists
         if historical_inspections:

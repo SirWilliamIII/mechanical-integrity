@@ -60,6 +60,19 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def get_session_factory() -> sessionmaker:
+    """
+    Get session factory for services that need to create their own sessions.
+    
+    Used by services that perform background tasks or need session isolation.
+    Each service operation creates its own session to avoid connection conflicts.
+    
+    Returns:
+        sessionmaker: Session factory configured for the database
+    """
+    return SessionLocal
+
+
 def verify_db_connection() -> bool:
     """
     Verify database connection for health checks.

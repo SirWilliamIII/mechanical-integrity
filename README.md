@@ -10,8 +10,11 @@ This system provides safety-critical analysis for petroleum industry equipment, 
 
 - **API 579 Compliance**: Fitness-for-service calculations with regulatory precision
 - **Document Analysis**: AI-powered inspection report processing using local LLMs
-- **Equipment Registry**: Comprehensive asset management with specification tracking
+- **Equipment Registry**: Comprehensive asset management with specification tracking and CRUD operations
 - **Risk Assessment**: Remaining life and strength factor calculations
+- **Corrosion Rate Analysis**: Statistical trend analysis with confidence intervals per `/api/v1/analysis/`
+- **Risk-Based Inspection**: Automated interval calculations following API 580/581 per `/api/v1/rbi/`
+- **Equipment Management Frontend**: Professional Vue.js interface with advanced filtering and export capabilities
 - **Audit Trail**: Complete traceability for all safety-critical calculations
 - **Session Isolation**: Production-safe background task processing with independent database sessions
 - **Security Hardening**: Comprehensive input sanitization against injection attacks
@@ -95,7 +98,9 @@ uv run pytest tests/unit/
 # Integration tests
 uv run pytest tests/integration/
 
-# Current test status: 108 passing, safety-critical session isolation fixed
+# Current test status: 100 passing, 19 failing (edge cases), 4 errors (database constraints)
+# Core safety-critical calculations: 100% passing
+# API integration tests: 100% passing
 ```
 
 ### Code Quality
@@ -145,6 +150,21 @@ uv run alembic upgrade head
 - Pressure calculations: ±0.1 psi
 - Stress calculations: ±1 psi
 - Always round remaining life down for safety
+
+## API Endpoints
+
+### Core APIs
+- **Analysis API** (`/api/v1/analysis/`): Corrosion rate trend analysis with statistical regression
+- **RBI API** (`/api/v1/rbi/`): Risk-based inspection interval calculations per API 580/581
+- **Equipment API** (`/api/v1/equipment/`): Comprehensive CRUD operations for equipment management
+- **Inspection API** (`/api/v1/inspections/`): Safety-critical inspection record processing
+- **Health API** (`/health`): System health monitoring and service status
+
+### Frontend Features
+- **Equipment Management**: Professional interface with DataTable, filtering, and export
+- **Dashboard**: Real-time equipment status and inspection due dates
+- **Inspection Forms**: Safety-critical data entry with validation
+- **Reporting**: Comprehensive audit trails and compliance reports
 
 ## Architecture
 

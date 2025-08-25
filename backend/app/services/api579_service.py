@@ -237,7 +237,7 @@ class API579Service:
         # Look up allowable stress from material properties
         # TODO: Implement full material database lookup
         material = params.get("material_specification", "SA-516-70")
-        temperature = params.get("design_temperature", Decimal("200"))
+        params.get("design_temperature", Decimal("200"))
         
         if "SA-516" in material:
             # Conservative allowable stress for SA-516-70 at typical temperatures

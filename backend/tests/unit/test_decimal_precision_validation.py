@@ -245,7 +245,7 @@ class TestDecimalPrecisionConsistency:
     def test_database_decimal_storage_precision(self, test_db_session):
         """Test DECIMAL column precision in database."""
         # Test that DECIMAL(6,3) properly stores thickness values
-        test_engine = test_db_session.get_bind()
+        test_db_session.get_bind()
         
         # Test boundary values for DECIMAL(6,3)
         boundary_values = [
@@ -402,11 +402,11 @@ class TestThicknessMeasurementAccuracy:
         """Test corrosion rate calculation maintains required precision."""
         # Previous thickness measurement
         previous_thickness = Decimal('1.250')
-        previous_date = datetime(2020, 1, 1)
+        datetime(2020, 1, 1)
         
         # Current thickness measurement
         current_thickness = Decimal('1.235')
-        current_date = datetime(2024, 1, 1)
+        datetime(2024, 1, 1)
         
         # Calculate metal loss and time difference
         metal_loss = previous_thickness - current_thickness

@@ -381,7 +381,7 @@ class TestSafetyCriticalCalculationPipeline:
             assert calculation_result["risk_level"] in ["HIGH", "CRITICAL"]
             
             # Check for automatic Level 2 assessment flag
-            assert calculation_result.get("level_2_required", False) == True
+            assert calculation_result.get("level_2_required", False)
     
     def test_calculation_audit_trail_completeness(self, test_client):
         """Test that complete audit trail is maintained through pipeline."""
@@ -455,7 +455,7 @@ class TestSafetyCriticalCalculationPipeline:
         # Verify digital signature/hash for tamper detection
         assert "calculation_hash" in audit_trail
         assert "data_integrity_verified" in audit_trail
-        assert audit_trail["data_integrity_verified"] == True
+        assert audit_trail["data_integrity_verified"]
 
 
 class TestCalculationVerificationIntegration:
@@ -571,6 +571,6 @@ class TestCalculationVerificationIntegration:
         assert "verification_status" in assessment_result
         
         # Verify verification was performed
-        assert assessment_result["verification_status"]["verified"] == True
+        assert assessment_result["verification_status"]["verified"]
         assert "primary_method" in assessment_result["verification_status"]
         assert "secondary_method" in assessment_result["verification_status"]

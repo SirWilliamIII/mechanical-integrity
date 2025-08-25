@@ -118,7 +118,7 @@
                 class="activity-item"
               >
                 <div class="equipment-info">
-                  <div class="equipment-tag">{{ equipment.tagNumber }}</div>
+                  <div class="equipment-tag">{{ equipment.tag_number }}</div>
                   <div class="equipment-desc">{{ equipment.description }}</div>
                   <div class="equipment-meta">
                     <span class="location">{{ equipment.location }}</span>
@@ -132,7 +132,7 @@
                 </div>
                 <div class="next-inspection">
                   <div class="inspection-date">
-                    {{ formatDate(equipment.nextInspectionDate) }}
+                    {{ formatDate(equipment.next_inspection_due) }}
                   </div>
                   <div class="inspection-label">Next Inspection</div>
                 </div>
@@ -169,7 +169,7 @@ const error = ref<string | null>(null)
 const totalEquipment = computed(() => equipmentData.value.length)
 
 const activeEquipment = computed(() => 
-  equipmentData.value.filter(eq => eq.status === 'active').length
+  equipmentData.value.filter(eq => eq.status === 'in_service').length
 )
 
 const maintenanceEquipment = computed(() => 
@@ -179,8 +179,8 @@ const maintenanceEquipment = computed(() =>
 const overdueInspections = computed(() => {
   const today = new Date()
   return equipmentData.value.filter(eq => {
-    if (!eq.nextInspectionDate) return false
-    return new Date(eq.nextInspectionDate) < today
+    if (!eq.next_inspection_due) return false
+    return new Date(eq.next_inspection_due) < today
   }).length
 })
 
@@ -188,8 +188,8 @@ const equipmentByType = computed(() => {
   const typeMap = new Map<EquipmentType, number>()
   
   equipmentData.value.forEach(equipment => {
-    const count = typeMap.get(equipment.equipmentType) || 0
-    typeMap.set(equipment.equipmentType, count + 1)
+    const count = typeMap.get(equipment.equipment_type) || 0
+    typeMap.set(equipment.equipment_type, count + 1)
   })
   
   return Array.from(typeMap.entries())
@@ -200,7 +200,7 @@ const equipmentByType = computed(() => {
 const recentEquipment = computed(() => {
   return equipmentData.value
     .slice()
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 5)
 })
 
@@ -222,24 +222,22 @@ async function loadEquipmentData() {
 }
 
 function formatEquipmentType(type: EquipmentType): string {
-  const typeMap = {
-    'pressure_vessel': 'Pressure Vessels',
-    'heat_exchanger': 'Heat Exchangers',
-    'pump': 'Pumps',
-    'compressor': 'Compressors',
-    'tank': 'Tanks',
-    'pipe': 'Piping',
-    'valve': 'Valves',
-    'other': 'Other'
+  const typeMap: Record<EquipmentType, string> = {
+    [EquipmentType.PRESSURE_VESSEL]: 'Pressure Vessels',
+    [EquipmentType.STORAGE_TANK]: 'Storage Tanks',
+    [EquipmentType.HEAT_EXCHANGER]: 'Heat Exchangers',
+    [EquipmentType.PIPING_SYSTEM]: 'Piping Systems',
+    [EquipmentType.REACTOR]: 'Reactors'
   }
   return typeMap[type] || type
 }
 
 function formatStatus(status: EquipmentStatus): string {
   const statusMap = {
-    'active': 'Active',
-    'inactive': 'Inactive',
+    'in_service': 'In Service',
+    'out_of_service': 'Out of Service',
     'maintenance': 'Maintenance',
+    'inspection_due': 'Inspection Due',
     'decommissioned': 'Decommissioned'
   }
   return statusMap[status] || status
@@ -247,9 +245,10 @@ function formatStatus(status: EquipmentStatus): string {
 
 function getStatusSeverity(status: EquipmentStatus): string {
   const severityMap = {
-    'active': 'success',
-    'inactive': 'warn',
-    'maintenance': 'info',
+    'in_service': 'success',
+    'out_of_service': 'danger',
+    'maintenance': 'warn',
+    'inspection_due': 'info',
     'decommissioned': 'secondary'
   }
   return severityMap[status] || 'secondary'

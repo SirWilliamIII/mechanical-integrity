@@ -74,9 +74,8 @@ class HealthChecker:
         if self.http_client:
             await self.http_client.aclose()
         if self.redis_client:
-            # TODO: [DEPRECATION] Replace deprecated close() with aclose()
-            # Redis client deprecation warning: Use aclose() instead of close()
-            await self.redis_client.close()
+            # Use aclose() for proper async Redis client cleanup (Redis 5.0.1+)
+            await self.redis_client.aclose()
     
     async def check_all_services(self) -> Dict[str, Any]:
         """
