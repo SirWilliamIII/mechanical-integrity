@@ -165,8 +165,10 @@ class DocumentAnalyzer:
     """
     # TODO: [FEATURE] Add OCR capability for scanned inspection reports
     # Integrate pytesseract or similar for image-based document processing
-    # TODO: [VALIDATION] Implement thickness measurement validation against API 579 limits
-    # Cross-check extracted values against acceptable ranges for equipment type
+    # TODO: [CRITICAL_VALIDATION] Implement physical bounds checking for AI-extracted measurements
+    # Risk: AI could extract unrealistic values that pass format validation but are physically impossible
+    # Impact: HIGH - Wrong thickness measurements lead to incorrect fitness-for-service assessments
+    # Required: Validate 0.1" < thickness < 5", 0.001 < corrosion_rate < 0.1 in/yr, statistical outlier detection
     
     def __init__(self) -> None:
         self.ollama_base_url = settings.OLLAMA_BASE_URL

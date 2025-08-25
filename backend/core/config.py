@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """Application settings with safety-critical defaults for petroleum industry compliance."""
-    
+
     # ============================================================================
     # APPLICATION CONFIGURATION
     # ============================================================================
@@ -20,53 +20,62 @@ class Settings(BaseSettings):
     # Production-safe defaults for safety-critical petroleum industry compliance
     ENVIRONMENT: Literal["development", "testing", "production"] = "production"  # Default to production for safety
     DEBUG: bool = False  # Never enable debug mode by default in safety-critical systems
-    
+
     @property
     def is_development(self) -> bool:
         """Check if running in development mode for safety-critical features."""
         return self.ENVIRONMENT.lower() == "development"
-    
+
     @property
     def is_production(self) -> bool:
         """Check if running in production mode."""
         return self.ENVIRONMENT.lower() == "production"
-    
+
     @property
     def is_testing(self) -> bool:
         """Check if running in testing mode."""
         return self.ENVIRONMENT.lower() in ("test", "testing")
-    
+
     @property
     def APP_NAME(self) -> str:
         """Alias for PROJECT_NAME to maintain backward compatibility."""
         return self.PROJECT_NAME
-    
+
     @property
     def APP_VERSION(self) -> str:
         """Alias for API_VERSION to maintain backward compatibility."""
         return self.API_VERSION
-    
+
     # ============================================================================
     # SECURITY CONFIGURATION
     # ============================================================================
+    # TODO: [CRITICAL_SECURITY] Replace hardcoded secret key with secure environment variable
+    # Risk: Using default secret compromises JWT token security and session integrity
+    # Impact: HIGH - Could allow token forgery and unauthorized access to safety-critical calculations
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
-    
+
     # CORS - Cross-Origin Resource Sharing for frontend integration
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = [
         "http://localhost:3000",   # React default
         "http://localhost:5173",   # Vite/Vue default
     ]
-    
+
     # ============================================================================
     # DATABASE CONFIGURATION
     # ============================================================================
+    # TODO: [CRITICAL_SECURITY] Replace hardcoded database credentials with environment variables
+    # Risk: Hardcoded password "t00r" exposes database access in source control
+    # Impact: CRITICAL - Could compromise all safety-critical calculation data and audit trails
     POSTGRES_USER: str = "will"
     POSTGRES_PASSWORD: str = "t00r"
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432
+    # TODO: [DATA_INTEGRITY] Fix database name mismatch: "risk-assessment" vs "mechanical_integrity"
+    # Risk: Database name inconsistency could cause connection failures in production
+    # Impact: HIGH - Could prevent critical fitness-for-service assessments
     POSTGRES_DB: str = "risk-assessment"
-    
+
     @property
     def database_url(self) -> str:
         """Construct PostgreSQL connection URL with AsyncPG driver."""
@@ -74,23 +83,23 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
-    
+
     # ============================================================================
     # EXTERNAL SERVICES
     # ============================================================================
     # Redis for job queuing and caching
     REDIS_URL: str = "redis://localhost:6379"
-    
+
     # Ollama LLM service for document analysis
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3"
-    
+
     # ============================================================================
     # MACHINE LEARNING CONFIGURATION
     # ============================================================================
     YOLO_MODEL_PATH: str = "ml/models/corrosion_yolov8.pt"
     ML_CONFIDENCE_THRESHOLD: float = 0.85
-    
+
     # ============================================================================
     # DOCUMENT PROCESSING
     # ============================================================================
@@ -98,27 +107,51 @@ class Settings(BaseSettings):
     ALLOWED_FILE_EXTENSIONS: List[str] = [".pdf", ".jpg", ".jpeg", ".png"]
     UPLOAD_DIRECTORY: str = "uploads"
     REPORTS_DIRECTORY: str = "reports"
-    
+
     # ============================================================================
     # API 579 SAFETY-CRITICAL PARAMETERS
     # ============================================================================
     # These values are critical for regulatory compliance - modify with extreme caution
     API579_DEFAULT_SAFETY_FACTOR: float = 0.9  # Conservative safety factor
     API579_DEFAULT_CORROSION_RATE: float = 0.005  # inches/year - must be validated per equipment
-    
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
         extra="ignore",  # Changed from 'forbid' to 'ignore' to allow extra env vars
     )
-    
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug_value(cls, debug_value) -> bool:
+        """
+        Parse DEBUG value from environment variable.
+        Handles string-to-boolean conversion gracefully.
+        """
+        if isinstance(debug_value, bool):
+            return debug_value
+        elif isinstance(debug_value, str):
+            # Handle common string representations
+            debug_lower = debug_value.lower().strip()
+            if debug_lower in ("true", "1", "yes", "on"):
+                return True
+            elif debug_lower in ("false", "0", "no", "off", "warn"):
+                return False
+            else:
+                raise ValueError(
+                    f"Invalid DEBUG value: '{debug_value}'. "
+                    "Use 'true'/'false', '1'/'0', 'yes'/'no', or 'on'/'off'."
+                )
+        else:
+            raise ValueError(f"DEBUG must be boolean or string, got {type(debug_value)}")
+
     @field_validator("DEBUG")
     @classmethod
     def validate_debug_production_safety(cls, debug_value: bool, info: ValidationInfo) -> bool:
         """
         Safety validation: Prevent DEBUG=True in production environment.
-        
-        For safety-critical petroleum industry applications, debug mode 
+
+        For safety-critical petroleum industry applications, debug mode
         must never be enabled in production as it could expose sensitive
         API 579 compliance data and calculation internals.
         """
@@ -138,7 +171,7 @@ class Settings(BaseSettings):
     def parse_cors_origins(cls, value: Union[str, List[str]]) -> Union[List[str], str]:
         """
         Parse CORS origins from environment variable.
-        
+
         Supports both comma-separated strings and list formats.
         """
         if isinstance(value, str) and not value.startswith("["):
