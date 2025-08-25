@@ -115,12 +115,9 @@ class InspectionRecord(Base, UUIDMixin, TimestampMixin):
     )
     confidence_level: Mapped[Decimal] = mapped_column(
         DECIMAL(precision=5, scale=2),
-        default=Decimal('75.00'),
-        comment="Statistical confidence in corrosion rate (0-100%)"
+        nullable=False,
+        comment="Statistical confidence in corrosion rate (0-100%) - calculated dynamically, DB default only for legacy compatibility"
     )
-    # TODO: [DATABASE] Remove hardcoded default confidence level from model
-    # Should be calculated dynamically based on measurement quality factors
-    # Default prevents proper confidence level variation in tests
     
     # ========================================================================
     # FINDINGS AND RECOMMENDATIONS

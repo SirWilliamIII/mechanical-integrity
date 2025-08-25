@@ -989,9 +989,11 @@ async def analyze_corrosion(
         corrosion_rate = None
         remaining_life = None
         calculation_method = "Single point analysis - no historical data"
-        # TODO: [CONSISTENCY] Standardize confidence level calculation across all endpoints
-        # This hardcoded value conflicts with dynamic calculation in create_inspection
-        confidence_level = 50.0
+        
+        # Calculate confidence level based on thickness readings and historical data
+        thickness_reading_count = len(current_inspection.thickness_readings_detailed) if current_inspection.thickness_readings_detailed else 0
+        has_historical_data = len(historical_inspections) > 0
+        confidence_level = float(_calculate_confidence_level(thickness_reading_count, has_historical_data))
         
         # Calculate corrosion rate if historical data exists
         if historical_inspections:
