@@ -335,7 +335,7 @@ class InspectionRecordResponse(BaseModel):
         """Convert Decimal fields to string for JSON serialization."""
         return str(value) if value is not None else None
     
-    @field_serializer('id', when_used='json')
+    @field_serializer('id', 'equipment_id', when_used='json')
     def serialize_uuid(self, value: UUID) -> str:
         """Convert UUID to string for JSON serialization."""
         return str(value)
@@ -346,7 +346,7 @@ class InspectionRecordResponse(BaseModel):
         return value.isoformat() if value is not None else None
     
     id: UUID4
-    equipment_id: str
+    equipment_id: UUID4
     inspection_date: datetime
     inspection_type: InspectionType
     inspector_name: str

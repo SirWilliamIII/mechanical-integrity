@@ -4,7 +4,7 @@ All safety-critical parameters are defined here with appropriate defaults.
 """
 from typing import List, Union, Literal
 
-from pydantic import AnyHttpUrl, field_validator, ValidationInfo
+from pydantic import AnyHttpUrl, Field, field_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -49,10 +49,10 @@ class Settings(BaseSettings):
     # ============================================================================
     # SECURITY CONFIGURATION
     # ============================================================================
-    # TODO: [CRITICAL_SECURITY] Replace hardcoded secret key with secure environment variable
-    # Risk: Using default secret compromises JWT token security and session integrity
-    # Impact: HIGH - Could allow token forgery and unauthorized access to safety-critical calculations
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    SECRET_KEY: str = Field(
+        description="JWT token signing key - MUST be set via environment variable",
+        min_length=64  # Ensure sufficient entropy for security
+    )
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
     # CORS - Cross-Origin Resource Sharing for frontend integration
@@ -64,17 +64,16 @@ class Settings(BaseSettings):
     # ============================================================================
     # DATABASE CONFIGURATION
     # ============================================================================
-    # TODO: [CRITICAL_SECURITY] Replace hardcoded database credentials with environment variables
-    # Risk: Hardcoded password "t00r" exposes database access in source control
-    # Impact: CRITICAL - Could compromise all safety-critical calculation data and audit trails
-    POSTGRES_USER: str = "will"
-    POSTGRES_PASSWORD: str = "t00r"
-    POSTGRES_SERVER: str = "localhost"
-    POSTGRES_PORT: int = 5432
-    # TODO: [DATA_INTEGRITY] Fix database name mismatch: "risk-assessment" vs "mechanical_integrity"
-    # Risk: Database name inconsistency could cause connection failures in production
-    # Impact: HIGH - Could prevent critical fitness-for-service assessments
-    POSTGRES_DB: str = "risk-assessment"
+    POSTGRES_USER: str = Field(default="will", description="Database username")
+    POSTGRES_PASSWORD: str = Field(
+        description="Database password - MUST be set via environment variable for security"
+    )
+    POSTGRES_SERVER: str = Field(default="localhost", description="Database server hostname")
+    POSTGRES_PORT: int = Field(default=5432, description="Database server port")
+    POSTGRES_DB: str = Field(
+        default="risk-assessment", 
+        description="Database name - matches existing deployment"
+    )
 
     @property
     def database_url(self) -> str:

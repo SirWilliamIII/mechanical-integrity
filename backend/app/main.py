@@ -10,9 +10,7 @@ import time
 import logging
 
 from core.config import settings
-from app.api import equipment, inspections, calculations, audit, analysis, rbi
-# TODO: [INTEGRATION_TESTS] Add missing API routers causing 404 errors in tests
-# Missing endpoints: batch operations, compliance reports
+from app.api import equipment, inspections, calculations, audit, analysis, rbi, compliance, batch
 from models.database import verify_db_connection
 from app.services.health import get_system_health
 
@@ -252,6 +250,18 @@ app.include_router(
     rbi.router,
     prefix=f"{settings.API_V1_STR}/rbi",
     tags=["rbi"],
+)
+
+app.include_router(
+    compliance.router,
+    prefix=f"{settings.API_V1_STR}/compliance",
+    tags=["compliance"],
+)
+
+app.include_router(
+    batch.router,
+    prefix=f"{settings.API_V1_STR}/batch",
+    tags=["batch"],
 )
 
 

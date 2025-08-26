@@ -274,8 +274,9 @@ class TestSafetyCriticalCalculationPipeline:
             "thickness_readings": [
                 {
                     "cml_number": "CML-01",
-                    "location": "Critical location",
-                    "thickness": "1.100",  # Low thickness for testing
+                    "location_description": "Critical location",
+                    "thickness_measured": "1.100",  # Low thickness for testing
+                    "design_thickness": "1.300",    # Required field
                     "previous_thickness": "1.250"
                 }
             ]
@@ -343,8 +344,9 @@ class TestSafetyCriticalCalculationPipeline:
             "thickness_readings": [
                 {
                     "cml_number": "CML-01",
-                    "location": "Critical thinning area",
-                    "thickness": "0.950",  # Very low thickness
+                    "location_description": "Critical thinning area",
+                    "thickness_measured": "0.950",  # Very low thickness
+                    "design_thickness": "1.300",    # Required field
                     "previous_thickness": "1.250"
                 }
             ]
@@ -396,8 +398,9 @@ class TestSafetyCriticalCalculationPipeline:
             "thickness_readings": [
                 {
                     "cml_number": "CML-01",
-                    "location": "Test location",
-                    "thickness": "1.200"
+                    "location_description": "Test location",
+                    "thickness_measured": "1.200",
+                    "design_thickness": "1.300"    # Required field
                 }
             ]
         }

@@ -28,6 +28,7 @@ from models import (
     Equipment,
     EquipmentType as ModelEquipmentType
 )
+from models.audit_trail import AuditTrailManager, AuditEventType
 from app.calculations.dual_path_calculator import API579Calculator, VerifiedResult
 from app.calculations.constants import API579Constants, EquipmentType
 from app.calculations.verification import CalculationVerifier
@@ -339,57 +340,96 @@ class API579Service:
         return mapping.get(model_type, EquipmentType.PRESSURE_VESSEL)
     
     def _calculate_derived_parameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate derived parameters from basic equipment data."""
+        """Calculate derived parameters from actual equipment data and ASME standards."""
         derived = {}
         
-        # TODO: [CRITICAL_GEOMETRY] Replace hardcoded radius assumptions with actual equipment dimensions
-        # Risk: Wrong geometry assumptions lead to incorrect stress calculations and thickness requirements
-        # Impact: CRITICAL - Could make equipment appear safer than reality, leading to catastrophic failure  
-        # Required: Add equipment dimension validation against API 579 geometric limits and industry standards
-        # For MVP, assume cylindrical vessel with D = 4 feet (48 inches)
-        if params["equipment_type"] == EquipmentType.PRESSURE_VESSEL:
-            derived["internal_radius"] = Decimal("24.0")  # 48"/2 = 24" radius
-        elif params["equipment_type"] == EquipmentType.PIPING:
-            derived["internal_radius"] = Decimal("6.0")   # 12" nominal pipe
+        # Get actual equipment dimensions from database
+        equipment_id = params.get("equipment_id")
+        if equipment_id:
+            with self.session_factory() as db:
+                from models.equipment_dimensions import EquipmentDimension, EquipmentDimensionService
+                
+                dimensions = db.query(EquipmentDimension).filter(
+                    EquipmentDimension.equipment_id == str(equipment_id)
+                ).first()
+                
+                if dimensions and dimensions.internal_radius:
+                    derived["internal_radius"] = dimensions.internal_radius
+                    derived["geometry_source"] = "DATABASE_VERIFIED"
+                elif dimensions and dimensions.inside_diameter:
+                    derived["internal_radius"] = dimensions.inside_diameter / Decimal('2')
+                    derived["geometry_source"] = "DATABASE_CALCULATED"
+                else:
+                    # Try to estimate from NPS if available
+                    if dimensions and dimensions.nominal_pipe_size and dimensions.schedule:
+                        pipe_dims = EquipmentDimensionService.estimate_dimensions_from_nps(
+                            dimensions.nominal_pipe_size, 
+                            dimensions.schedule
+                        )
+                        if "internal_radius" in pipe_dims:
+                            derived["internal_radius"] = pipe_dims["internal_radius"]
+                            derived["geometry_source"] = "ASME_B36_10_ESTIMATED"
+                        else:
+                            # Conservative default - flag for engineering review
+                            derived["internal_radius"] = self._get_conservative_radius(params["equipment_type"])
+                            derived["geometry_source"] = "CONSERVATIVE_DEFAULT"
+                            derived["geometry_warning"] = "Using conservative default radius - verify actual dimensions"
+                    else:
+                        # Conservative default - flag for engineering review
+                        derived["internal_radius"] = self._get_conservative_radius(params["equipment_type"])
+                        derived["geometry_source"] = "CONSERVATIVE_DEFAULT"
+                        derived["geometry_warning"] = "Using conservative default radius - verify actual dimensions"
         else:
-            derived["internal_radius"] = Decimal("24.0")  # Default
+            # No equipment ID - use conservative defaults
+            derived["internal_radius"] = self._get_conservative_radius(params["equipment_type"])
+            derived["geometry_source"] = "CONSERVATIVE_DEFAULT"
+            derived["geometry_warning"] = "Using conservative default radius - verify actual dimensions"
         
-        # Look up allowable stress from material properties
-        # TODO: [CRITICAL_MATERIALS] Implement complete ASME Section II-D material database lookup
-        # Risk: Using hardcoded material properties instead of certified ASME values
-        # Impact: CRITICAL - Wrong allowable stress could lead to unsafe fitness-for-service assessments
-        # Required: Temperature interpolation per ASME B31.3 Table A-1 for petroleum industry compliance
+        # Look up allowable stress from ASME Section II-D material database
         material = params.get("material_specification", "SA-516-70")
         temperature = params.get("design_temperature", Decimal("200"))
         
-        if "SA-516" in material:
-            # Temperature-dependent allowable stress for SA-516-70
-            if temperature <= Decimal("100"):
-                derived["allowable_stress"] = Decimal("20000")  # psi at ambient
-            elif temperature <= Decimal("200"):
-                derived["allowable_stress"] = Decimal("20000")  # psi at 200°F
-            elif temperature <= Decimal("400"):
-                derived["allowable_stress"] = Decimal("19500")  # Slightly reduced
-            else:
-                derived["allowable_stress"] = Decimal("18000")  # High temperature
+        from models.material_properties import ASMEMaterialDatabase
+        
+        try:
+            allowable_stress, material_metadata = ASMEMaterialDatabase.get_allowable_stress(
+                material, temperature
+            )
+            derived["allowable_stress"] = allowable_stress
+            derived["material_metadata"] = material_metadata
+            derived["material_source"] = material_metadata.get("source", "UNKNOWN")
+            
+            if "warning" in material_metadata:
+                derived["material_warning"] = material_metadata["warning"]
                 
-            # TODO: [MATERIALS] Implement temperature-dependent allowable stress lookup from ASME Section II-D
-            # Current implementation uses simplified hardcoded values. Should query material properties database
-            # with temperature interpolation per ASME B31.3 Table A-1 for safety-critical accuracy
-        elif "SA-106" in material:
-            # Temperature-dependent allowable stress for SA-106
-            if temperature <= Decimal("200"):
-                derived["allowable_stress"] = Decimal("20000")  # psi
-            else:
-                derived["allowable_stress"] = Decimal("18000")  # High temperature
-        else:
-            # Conservative default for unknown materials
-            derived["allowable_stress"] = Decimal("15000")  # psi
+        except Exception as e:
+            # Use very conservative default for calculation errors
+            derived["allowable_stress"] = Decimal("15000")  # Very conservative
+            derived["material_source"] = "CONSERVATIVE_DEFAULT"
+            derived["material_warning"] = f"Material lookup failed: {str(e)}, using conservative default"
         
         # Joint efficiency - assume full RT unless specified
         derived["joint_efficiency"] = Decimal("1.0")
         
         return derived
+    
+    def _get_conservative_radius(self, equipment_type: EquipmentType) -> Decimal:
+        """
+        Get conservative default radius for equipment type.
+        
+        Uses conservative (smaller) radii to ensure calculations are safe-sided
+        when actual dimensions are unavailable.
+        """
+        # Conservative defaults - smaller radii lead to higher stress calculations
+        # and more conservative thickness requirements
+        conservative_radii = {
+            EquipmentType.PRESSURE_VESSEL: Decimal("18.0"),  # 36" diameter vessel (conservative)
+            EquipmentType.PIPING: Decimal("4.0"),            # 8" nominal pipe (conservative)
+            EquipmentType.STORAGE_TANK: Decimal("30.0"),     # 60" diameter tank (conservative)
+            EquipmentType.HEAT_EXCHANGER: Decimal("12.0"),   # 24" shell diameter (conservative)
+        }
+        
+        return conservative_radii.get(equipment_type, Decimal("18.0"))  # Default conservative
     
     def _assess_calculation_capabilities(self, params: Dict[str, Any]) -> Dict[str, bool]:
         """Assess which calculations can be performed with available data."""

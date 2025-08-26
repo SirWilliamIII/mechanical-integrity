@@ -248,12 +248,12 @@ class API579Calculator:
         denominator = nominal_thickness - minimum_thickness
         
         if denominator <= 0:
-            logger.warning(
-                f"Design thickness ({nominal_thickness}) is less than or equal to minimum required "
-                f"thickness ({minimum_thickness}). Equipment may need re-rating or retirement."
+            error_msg = (
+                f"Design thickness ({nominal_thickness}) must be greater than minimum required "
+                f"thickness ({minimum_thickness}). Invalid thickness relationship detected."
             )
-            # For API 579, when t_nominal <= t_min, RSF is effectively 0 (unfit for service)
-            rsf_primary = Decimal('0.0')
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         else:
             rsf_primary = numerator / denominator
         

@@ -17,15 +17,16 @@ pyproject.toml
 __pycache__/
 *.py[codz]
 *$py.class
-
+.kilocode/
 docs/
 .pytest_cache/
 .claude/
 .qodo/
 .venv/
 .vscode/
-
-
+.kilocodemodes
+assessment.md
+COMPREHENSIVE SECURITY AND SAFETY AUDIT COMPLETED.md
 
 CLAUDE_STATE.md
 GEMINI.md

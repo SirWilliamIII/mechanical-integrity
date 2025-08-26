@@ -163,7 +163,7 @@ class RBIService:
             raise ValueError(f"API 579 calculation {request.calculation_id} not found")
         
         # Verify calculation is for the same equipment
-        if calculation.inspection.equipment_id != equipment.id:
+        if calculation.inspection_record.equipment_id != equipment.id:
             raise ValueError(
                 f"Calculation {request.calculation_id} is not for equipment {request.equipment_id}"
             )
