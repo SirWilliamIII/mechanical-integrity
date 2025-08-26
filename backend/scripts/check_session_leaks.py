@@ -9,7 +9,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 import psycopg2
-from sqlalchemy import text
 
 # Add backend to path
 sys.path.insert(0, '/Users/will/Programming/Projects/mechanical-integrity/backend')
@@ -117,13 +116,13 @@ def stress_test_api579_service(iterations=50):
     final_connections = get_active_connections()
     connection_leak = final_connections - baseline_connections
     
-    print(f"\n📈 STRESS TEST RESULTS:")
+    print("\n📈 STRESS TEST RESULTS:")
     print(f"  Total time: {total_time:.2f} seconds")
     print(f"  Successful calculations: {len(successful)}/{len(results)}")
     print(f"  Failed calculations: {len(failed)}")
     print(f"  Average time per calculation: {total_time/len(results):.3f}s")
     
-    print(f"\n🔌 CONNECTION ANALYSIS:")
+    print("\n🔌 CONNECTION ANALYSIS:")
     print(f"  Baseline connections: {baseline_connections}")
     print(f"  Final connections: {final_connections}")
     print(f"  Connection leak: {connection_leak}")
@@ -132,11 +131,11 @@ def stress_test_api579_service(iterations=50):
         print(f"❌ POTENTIAL SESSION LEAK DETECTED: {connection_leak} extra connections")
         return False
     else:
-        print(f"✅ NO SESSION LEAKS DETECTED")
+        print("✅ NO SESSION LEAKS DETECTED")
         return True
     
     if failed:
-        print(f"\n❌ FAILED CALCULATIONS:")
+        print("\n❌ FAILED CALCULATIONS:")
         for failure in failed[:5]:  # Show first 5 failures
             print(f"  Iteration {failure['iteration']}: {failure['error']}")
 

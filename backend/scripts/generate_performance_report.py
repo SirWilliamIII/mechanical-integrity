@@ -230,12 +230,12 @@ def main():
     print(f"🏗️  Environment: {report['report_metadata']['environment']}")
     print(f"🗄️  Database: {report['report_metadata']['database']}")
     
-    print(f"\n📈 SYSTEM RESOURCES:")
+    print("\n📈 SYSTEM RESOURCES:")
     sys_metrics = report['system_overview']
     print(f"  CPU Usage: {sys_metrics['cpu_percent']}%")
     print(f"  Memory Usage: {sys_metrics['memory_percent']}% ({sys_metrics['memory_used_gb']} GB used)")
     
-    print(f"\n🔌 DATABASE STATUS:")
+    print("\n🔌 DATABASE STATUS:")
     db_metrics = report['database_overview']
     if 'error' not in db_metrics:
         print(f"  Total Connections: {db_metrics['total_connections']}")
@@ -244,7 +244,7 @@ def main():
     else:
         print(f"  Error: {db_metrics['error']}")
     
-    print(f"\n🚀 CONCURRENT LOAD TEST:")
+    print("\n🚀 CONCURRENT LOAD TEST:")
     load_test = report['concurrent_load_test']
     perf = load_test['performance_results']
     print(f"  Operations/Second: {perf['operations_per_second']}")
@@ -255,13 +255,13 @@ def main():
     print(f"  CPU Impact: {system_impact['cpu_delta']:+}%")
     print(f"  Memory Impact: {system_impact['memory_delta_gb']:+} GB")
     
-    print(f"\n🛡️  SAFETY ASSESSMENT:")
+    print("\n🛡️  SAFETY ASSESSMENT:")
     safety = report['session_safety_assessment']
     print(f"  Session Management: ✅ {safety['session_per_task_pattern']}")
     print(f"  Connection Safety: ✅ {safety['concurrent_safety']}")
     print(f"  Leak Risk: ✅ {safety['session_leak_risk']}")
     
-    print(f"\n🏭 PRODUCTION READINESS:")
+    print("\n🏭 PRODUCTION READINESS:")
     prod = report['production_readiness']
     for key, status in prod.items():
         status_icon = "✅" if status in ["OPERATIONAL", "STABLE", "SAFE", "ACCEPTABLE"] else "⚠️"

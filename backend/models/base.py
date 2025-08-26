@@ -1,7 +1,7 @@
 """Base model with common fields"""
 from datetime import datetime
 from sqlalchemy import DateTime, String
-from sqlalchemy.types import TypeDecorator, UUID
+from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
 import uuid
@@ -19,12 +19,8 @@ class GUID(TypeDecorator):
     Handles both string and UUID inputs/outputs, allowing for gradual
     migration from VARCHAR to native UUID types.
     """
-    impl = String
+    impl = String(36)  # Use String(36) to match existing database schema
     cache_ok = True
-
-    def __init__(self):
-        # Use String(36) to match existing database schema
-        super().__init__(String(36))
 
     def process_bind_param(self, value, dialect):
         """Convert UUID objects to strings for database storage."""

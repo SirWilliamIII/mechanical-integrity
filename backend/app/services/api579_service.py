@@ -28,7 +28,6 @@ from models import (
     Equipment,
     EquipmentType as ModelEquipmentType
 )
-from models.audit_trail import AuditTrailManager, AuditEventType
 from app.calculations.dual_path_calculator import API579Calculator, VerifiedResult
 from app.calculations.constants import API579Constants, EquipmentType
 from app.calculations.verification import CalculationVerifier

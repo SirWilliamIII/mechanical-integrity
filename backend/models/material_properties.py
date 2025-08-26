@@ -6,7 +6,7 @@ Safety-critical material data per ASME Section II-D.
 from decimal import Decimal
 from typing import Dict, Optional, Tuple
 from enum import Enum
-from sqlalchemy import Column, String, DECIMAL, Integer
+from sqlalchemy import String, DECIMAL, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import BaseModel

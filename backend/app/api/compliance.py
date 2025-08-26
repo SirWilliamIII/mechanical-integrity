@@ -3,12 +3,11 @@ Compliance API endpoints for regulatory reporting and audit trail compliance.
 Safety-critical API following API 579, API 510, API 570, and API 653 requirements.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 import logging
 import hashlib
 import json
-from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import sessionmaker
@@ -191,7 +190,7 @@ async def generate_regulatory_compliance_report(
         logger.error(f"Database error generating compliance report for {equipment_tag}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error generating compliance report"
+            detail="Database error generating compliance report"
         )
     except Exception as e:
         logger.error(f"Error generating compliance report for {equipment_tag}: {e}")

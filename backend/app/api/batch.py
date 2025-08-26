@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
 from models.database import get_session_factory
-from models import Equipment, InspectionRecord, API579Calculation
+from models import Equipment, InspectionRecord
 from app.services.api579_service import API579Service
 from app.services.analysis_service import AnalysisService
 
