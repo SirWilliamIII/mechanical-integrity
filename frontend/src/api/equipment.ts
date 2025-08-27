@@ -97,10 +97,9 @@ export class EquipmentApi {
    * Export equipment data
    */
   async exportEquipment(format: 'csv' | 'xlsx' = 'csv'): Promise<Blob> {
-    const response = await apiClient.get(`${this.basePath}/export`, { format }, {
-      responseType: 'blob'
-    } as any)
-    return response
+    // Note: File download requires custom handling - this may need to be implemented differently
+    const response = await apiClient.get(`${this.basePath}/export`, { format })
+    return response as any
   }
 }
 

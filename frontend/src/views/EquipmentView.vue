@@ -1,3 +1,11 @@
+<!--
+    EquipmentView - Professional component connected to backend equipment API
+    Features:
+    - Real-time equipment data loading via equipmentApi.getEquipment()
+    - Full CRUD operations (create/update/delete) connected to backend
+    - Advanced filtering, search, and pagination
+    - Safety-critical decimal precision handling for pressure/temperature values
+-->
 <template>
   <div class="equipment-view">
     <div class="page-header">

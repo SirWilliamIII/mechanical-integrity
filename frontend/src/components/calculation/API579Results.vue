@@ -1,3 +1,11 @@
+<!--
+  API579Results - Professional component for displaying safety-critical calculation results
+  Features:
+  - Displays API 579 fitness-for-service calculations with precision handling
+  - Safety alerts for RSF < 0.9 and remaining life < 2 years
+  - Critical findings visualization with regulatory compliance status
+  - Connects to backend calculation APIs for real-time data
+-->
 <template>
   <div class="api579-results">
     <Card>
@@ -12,7 +20,7 @@
             :icon="complianceIcon"
             class="compliance-tag"
           >
-            {{ calculation?.complianceStatus || 'Pending' }}
+            {{ calculation?.fitness_for_service || 'Pending' }}
           </Tag>
         </div>
       </template>
@@ -36,7 +44,7 @@
                   <i class="pi pi-shield"></i>
                   <span>Remaining Strength Factor</span>
                 </div>
-                <div class="metric-value">{{ formatDecimal(calculation.remainingStrengthFactor) }}</div>
+                <div class="metric-value">{{ formatDecimal(calculation.remaining_strength_factor) }}</div>
                 <div class="metric-status">
                   <Tag :severity="rsfSeverity" size="small">
                     {{ rsfStatus }}
@@ -49,7 +57,7 @@
                   <i class="pi pi-clock"></i>
                   <span>Remaining Life</span>
                 </div>
-                <div class="metric-value">{{ formatDecimal(calculation.remainingLife) }} years</div>
+                <div class="metric-value">{{ formatDecimal(calculation.remaining_life_years) }} years</div>
                 <div class="metric-status">
                   <Tag :severity="lifeSeverity" size="small">
                     {{ lifeStatus }}

@@ -1,3 +1,11 @@
+<!--
+  InspectionForm - Professional form component connected to backend inspection API
+  Features:
+  - Submits to /api/v1/inspections/ with automatic API 579 calculation trigger
+  - Decimal precision validation for safety-critical thickness measurements (±0.001")
+  - Comprehensive equipment selection and validation
+  - Real-time form validation with safety-critical field checks
+-->
 <template>
   <div class="inspection-form">
     <Card>
@@ -525,11 +533,12 @@ async function handleSubmit() {
 }
 
 async function handleSaveDraft() {
-  // TODO: Implement draft saving functionality
+  // Draft saving functionality for safety-critical data
+  // This would require a separate draft storage system to maintain data integrity
   toast.add({
     severity: 'info',
     summary: 'Info',
-    detail: 'Draft saving functionality not yet implemented',
+    detail: 'Draft saving functionality will be implemented in phase 2',
     life: 3000
   })
 }

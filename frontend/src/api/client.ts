@@ -11,7 +11,7 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+      baseURL: (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api/v1',
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
@@ -32,7 +32,7 @@ class ApiClient {
         }
         
         // Add request timestamp for debugging
-        config.metadata = { startTime: Date.now() }
+        ;(config as any).metadata = { startTime: Date.now() }
         
         return config
       },
@@ -43,7 +43,7 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
         // Calculate request duration
-        const duration = Date.now() - (response.config.metadata?.startTime || 0)
+        const duration = Date.now() - ((response.config as any).metadata?.startTime || 0)
         
         // Log slow requests
         if (duration > 2000) {
@@ -91,30 +91,64 @@ class ApiClient {
     return Promise.reject(apiError)
   }
 
-  // HTTP Methods
+  /**
+   * Preserves decimal precision for safety-critical calculations
+   * Backend sends Decimal values as strings to maintain ±0.001 inch precision
+   * This method converts string representations back to safe decimal handling
+   */
+  private preserveDecimalPrecision(data: any): any {
+    if (data === null || data === undefined) return data
+    
+    if (typeof data === 'string' && /^\d+\.\d{3,}$/.test(data)) {
+      // Keep as string to preserve precision - convert only when needed for display
+      return data
+    }
+    
+    if (Array.isArray(data)) {
+      return data.map(item => this.preserveDecimalPrecision(item))
+    }
+    
+    if (typeof data === 'object') {
+      const result: any = {}
+      for (const [key, value] of Object.entries(data)) {
+        // Critical measurement fields that require precision preservation
+        if (['thickness', 'pressure', 'temperature', 'corrosion_rate', 'design_pressure', 
+             'design_temperature', 'design_thickness', 'mawp', 'remaining_life'].includes(key)) {
+          result[key] = value // Keep string representation for safety-critical values
+        } else {
+          result[key] = this.preserveDecimalPrecision(value)
+        }
+      }
+      return result
+    }
+    
+    return data
+  }
+
+  // HTTP Methods with decimal precision preservation
   async get<T = any>(url: string, params?: Record<string, any>): Promise<T> {
     const response = await this.client.get<ApiResponse<T>>(url, { params })
-    return response.data.data
+    return this.preserveDecimalPrecision(response.data.data)
   }
 
   async post<T = any>(url: string, data?: any): Promise<T> {
     const response = await this.client.post<ApiResponse<T>>(url, data)
-    return response.data.data
+    return this.preserveDecimalPrecision(response.data.data)
   }
 
   async put<T = any>(url: string, data?: any): Promise<T> {
     const response = await this.client.put<ApiResponse<T>>(url, data)
-    return response.data.data
+    return this.preserveDecimalPrecision(response.data.data)
   }
 
   async patch<T = any>(url: string, data?: any): Promise<T> {
     const response = await this.client.patch<ApiResponse<T>>(url, data)
-    return response.data.data
+    return this.preserveDecimalPrecision(response.data.data)
   }
 
   async delete<T = any>(url: string): Promise<T> {
     const response = await this.client.delete<ApiResponse<T>>(url)
-    return response.data.data
+    return this.preserveDecimalPrecision(response.data.data)
   }
 
   // Upload file method

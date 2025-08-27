@@ -209,6 +209,10 @@ def assert_decimal_equal(actual: Decimal, expected: Decimal, precision: int = 3)
     """Assert decimal values are equal within precision."""
     assert round(actual, precision) == round(expected, precision)
 
+# TODO: [TESTING] Add database transaction rollback for better test isolation
+# Current test fixtures may have state leakage between test runs
+# Consider implementing proper transaction rollback in teardown for cleaner tests
+
 
 def assert_response_success(response, expected_status: int = 200):
     """

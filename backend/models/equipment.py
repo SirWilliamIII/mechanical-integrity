@@ -34,6 +34,17 @@ class EquipmentType(str, Enum):
     HEAT_EXCHANGER = "heat_exchanger"    # TEMA standards + API 579
 
 
+class EquipmentCriticality(str, Enum):
+    """
+    Equipment criticality levels for risk-based inspection.
+    
+    Used to determine inspection intervals and failure consequence severity.
+    """
+    HIGH = "HIGH"      # Critical equipment requiring frequent inspection
+    MEDIUM = "MEDIUM"  # Standard inspection intervals
+    LOW = "LOW"        # Extended inspection intervals
+
+
 class Equipment(Base, UUIDMixin, TimestampMixin):
     """
     Equipment master data for mechanical integrity management.
@@ -60,6 +71,12 @@ class Equipment(Base, UUIDMixin, TimestampMixin):
     equipment_type: Mapped[EquipmentType] = mapped_column(
         SQLEnum(EquipmentType),
         comment="Equipment classification per API standards"
+    )
+    criticality: Mapped[EquipmentCriticality] = mapped_column(
+        SQLEnum(EquipmentCriticality),
+        default=EquipmentCriticality.MEDIUM,
+        server_default='MEDIUM',
+        comment="Equipment criticality level for risk-based inspection"
     )
     
     # ========================================================================
