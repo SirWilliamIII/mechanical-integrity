@@ -4,6 +4,9 @@ Stress tests for concurrent inspection processing.
 Tests system behavior under high load with multiple simultaneous 
 inspection data entries, calculations, and database operations.
 Critical for ensuring data integrity in production environments.
+
+# TODO: [DATABASE_INTEGRITY] Fix concurrent inspection creation failures - implement proper session isolation
+# TODO: [CONNECTION_POOL] Resolve database connection pool exhaustion under load - increase pool size or implement connection retry logic
 """
 import pytest
 import threading
@@ -132,6 +135,7 @@ class TestConcurrentInspectionProcessing:
                 thickness_readings={},  # JSON field
                 min_thickness_found=min_thickness,
                 avg_thickness=avg_thickness,
+                confidence_level=Decimal('95.0'),  # Statistical confidence for stress test
                 findings=inspection_data["findings"],
                 recommendations=inspection_data["recommendations"]
             )

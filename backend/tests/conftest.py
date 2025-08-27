@@ -144,6 +144,7 @@ def sample_inspection(test_db, sample_equipment):
         thickness_readings=thickness_data,
         min_thickness_found=Decimal("1.238"),
         avg_thickness=Decimal("1.241"),
+        confidence_level=Decimal("95.0"),  # Statistical confidence level required for all inspections
         verified_by=None,  # Not yet verified
         verified_at=None
     )
@@ -189,6 +190,7 @@ def multiple_inspections(test_db, sample_equipment):
             thickness_readings=thickness_data,
             min_thickness_found=Decimal(str(thickness_set["min"])),
             avg_thickness=Decimal(str(thickness_set["avg"])),
+            confidence_level=Decimal("95.0"),  # Statistical confidence level for trend analysis
             verified_by="Jane Smith" if i < 2 else None,
             verified_at=datetime(2024, 8, 20) if i < 2 else None
         )

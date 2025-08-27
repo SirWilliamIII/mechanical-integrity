@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Optional, Union
 import logging
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.calculations.constants import API579Constants, EquipmentType
 
@@ -52,10 +52,9 @@ class ValidationResult(BaseModel):
     action_required: Optional[str] = Field(None, description="Required action if not valid")
     warnings: List[str] = Field(default_factory=list, description="Non-critical warnings")
     
-    class Config:
-        json_encoders = {
-            Decimal: lambda v: str(v)
-        }
+    model_config = ConfigDict(
+        json_encoders={Decimal: str}  # Pydantic v2 format for precision preservation
+    )
 
 
 class API579Validator:

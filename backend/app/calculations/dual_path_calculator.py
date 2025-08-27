@@ -19,7 +19,7 @@ from typing import Optional
 from uuid import uuid4
 import logging
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +55,12 @@ class VerifiedResult(BaseModel):
     assumptions: list[str] = Field(default_factory=list, description="Conservative assumptions made")
     warnings: list[str] = Field(default_factory=list, description="Any warnings generated")
     
-    class Config:
-        json_encoders = {
-            Decimal: lambda v: str(v),  # Preserve full precision in JSON
+    model_config = ConfigDict(
+        json_encoders={
+            Decimal: str,  # Preserve full precision in JSON  
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 class API579Calculator:

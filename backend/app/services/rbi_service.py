@@ -298,12 +298,16 @@ class RBIService:
         
         base_interval = base_intervals[risk_level]
         
-        # Adjust based on Remaining Strength Factor
+        # Adjust based on Remaining Strength Factor - SAFETY CRITICAL
         rsf = calculation.remaining_strength_factor
         if rsf < Decimal('0.8'):
-            # Low RSF requires more frequent inspection
+            # Very low RSF - critical safety condition
             base_interval *= Decimal('0.5')
+        elif rsf < Decimal('0.9'):
+            # Low RSF - ensure max 2 years per API 580 safety requirements
+            base_interval = min(base_interval * Decimal('0.5'), Decimal('2.0'))
         elif rsf < Decimal('1.0'):
+            # Moderate RSF reduction - standard degradation
             base_interval *= Decimal('0.75')
         # RSF >= 1.0 uses base interval
         

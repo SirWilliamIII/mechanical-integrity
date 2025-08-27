@@ -76,6 +76,8 @@ class TestDecimalPrecisionConsistency:
     
     def test_thickness_reading_precision_maintained(self, test_db_session):
         """Test that ThicknessReading correctly maintains decimal precision."""
+        # TODO: [DECIMAL_PRECISION] Critical safety issue - convert Equipment model to use Decimal fields instead of Float
+        # Current failure: precision loss in design_pressure/design_temperature/design_thickness fields
         # Create equipment first
         equipment = Equipment(
             tag_number="V-102-TEST",
@@ -101,7 +103,8 @@ class TestDecimalPrecisionConsistency:
             report_number="RPT-001",
             thickness_readings={},
             min_thickness_found=Decimal('1.234'),
-            avg_thickness=Decimal('1.240')
+            avg_thickness=Decimal('1.240'),
+            confidence_level=Decimal('95.0')  # Statistical confidence for precision test
         )
         test_db_session.add(inspection)
         test_db_session.flush()
@@ -169,7 +172,8 @@ class TestDecimalPrecisionConsistency:
             report_number="RPT-002",
             thickness_readings={},
             min_thickness_found=Decimal('1.200'),
-            avg_thickness=Decimal('1.220')
+            avg_thickness=Decimal('1.220'),
+            confidence_level=Decimal('95.0')  # Statistical confidence for API579 precision test
         )
         test_db_session.add(inspection)
         test_db_session.flush()
@@ -281,7 +285,8 @@ class TestDecimalPrecisionConsistency:
                 report_number=f"RPT-{uuid4().hex[:6]}",
                 thickness_readings={},
                 min_thickness_found=value,
-                avg_thickness=value
+                avg_thickness=value,
+                confidence_level=Decimal('95.0')  # Statistical confidence for DECIMAL precision test
             )
             test_db_session.add(inspection)
             test_db_session.commit()
