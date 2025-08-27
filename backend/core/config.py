@@ -182,5 +182,12 @@ class Settings(BaseSettings):
         else:
             raise ValueError(f"Invalid CORS origins format: {value}")
 
+    # TODO: [PRODUCTION] Add production deployment configuration
+    # - SSL/TLS certificate paths and validation
+    # - Production database connection pooling settings (max_connections, overflow)
+    # - Redis cluster configuration for high availability
+    # - Load balancer health check endpoint configuration
+    # - Logging configuration with proper log rotation and structured JSON logging
+
 
 settings = Settings()

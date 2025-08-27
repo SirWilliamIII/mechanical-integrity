@@ -1,4 +1,5 @@
 # Python-generated files
+FULLSTACK_DEVELOPER_JOB_DESCRIPTION.md
 __pycache__
 *.py[oc]
 build/
@@ -12,6 +13,7 @@ context.md
 pyproject.toml
 .qodo
 # Virtual environments
+.claude/agents/
 .venv
 # Byte-compiled / optimized / DLL files
 __pycache__/

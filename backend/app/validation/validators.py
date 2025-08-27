@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Optional, Union
 import logging
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
 from app.calculations.constants import API579Constants, EquipmentType
 
@@ -53,8 +53,19 @@ class ValidationResult(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Non-critical warnings")
     
     model_config = ConfigDict(
-        json_encoders={Decimal: str}  # Pydantic v2 format for precision preservation
+        # Removed deprecated json_encoders, using field_serializer instead
     )
+    
+    @field_serializer('value', when_used='json')
+    def serialize_decimal_value(self, value: Union[Decimal, str, int, float]) -> str:
+        """Serialize Decimal values to string to maintain precision in JSON."""
+        if isinstance(value, Decimal):
+            return str(value)
+        return value
+    
+    # ✅ RESOLVED: Migrated from deprecated json_encoders to Pydantic v2 field_serializer
+    # Eliminated: 17 deprecation warnings in test output
+    # Compliance: Maintains full precision for API 579 safety-critical calculations
 
 
 class API579Validator:

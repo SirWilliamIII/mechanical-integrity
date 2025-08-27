@@ -4,18 +4,24 @@ Test script for API 579 integration.
 Tests the complete workflow from equipment creation to calculations.
 """
 
-import asyncio
-import httpx
+import sys
+import os
 
-BASE_URL = "http://localhost:8001"
+# Add backend to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-async def test_api579_integration():
+from fastapi.testclient import TestClient
+from app.main import app
+
+def test_api579_integration():
     """Test the complete API 579 integration workflow.
     
-    # TODO: [INTEGRATION_TEST] Fix httpx connection failure - ensure FastAPI test server is running or use TestClient
+    # ✅ RESOLVED: Converted from httpx to FastAPI TestClient for reliable test execution
+    # Benefits: No external server dependency, faster execution, better CI/CD compatibility
+    # No network calls required - tests run in-process against actual FastAPI application
     """
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    with TestClient(app) as client:
         print("🧪 Testing API 579 Integration")
         print("=" * 50)
         
@@ -23,23 +29,16 @@ async def test_api579_integration():
         print("\n1. Creating test pressure vessel...")
         equipment_data = {
             "tag_number": "V-101",
-            "description": "Test Pressure Vessel for API 579",
-            "equipment_type": "pressure_vessel",
+            "name": "Test Pressure Vessel for API 579",
+            "equipment_type": "VESSEL",
             "design_pressure": 150.0,
             "design_temperature": 350.0,
-            "material": "SA-516-70",
+            "material_specification": "SA-516-70",
             "design_thickness": 0.500,
-            "diameter": 60.0,
-            "length": 120.0,
-            "joint_efficiency": 1.0,
-            "corrosion_allowance": 0.125,
-            "location": "Unit 100 - Test Area",
-            "service": "Hydrocarbon Service",
-            "last_inspection_date": "2023-01-15",
-            "next_inspection_due": "2026-01-15"
+            "location": "Unit 100 - Test Area"
         }
         
-        response = await client.post(f"{BASE_URL}/equipment/", json=equipment_data)
+        response = client.post("/api/v1/equipment/", json=equipment_data)
         if response.status_code != 201:
             print(f"❌ Failed to create equipment: {response.text}")
             return
@@ -104,7 +103,7 @@ async def test_api579_integration():
             ]
         }
         
-        response = await client.post(f"{BASE_URL}/inspections/", json=inspection_data)
+        response = client.post("/api/v1/inspections/", json=inspection_data)
         if response.status_code != 201:
             print(f"❌ Failed to create inspection: {response.text}")
             return
@@ -117,11 +116,12 @@ async def test_api579_integration():
         
         # Step 3: Wait for background calculations
         print("\n3. Waiting for API 579 calculations to complete...")
-        await asyncio.sleep(5)  # Give background task time to run
+        import time
+        time.sleep(5)  # Give background task time to run
         
         # Step 4: Check calculation results
         print("\n4. Retrieving API 579 calculation results...")
-        response = await client.get(f"{BASE_URL}/inspections/{inspection_id}/calculations")
+        response = client.get(f"/api/v1/inspections/{inspection_id}/calculations")
         
         if response.status_code != 200:
             print(f"❌ Failed to get calculations: {response.text}")
@@ -166,7 +166,7 @@ async def test_api579_integration():
         
         # Step 5: Get detailed inspection record
         print("\n5. Retrieving complete inspection record...")
-        response = await client.get(f"{BASE_URL}/inspections/{inspection_id}")
+        response = client.get(f"/api/v1/inspections/{inspection_id}")
         
         if response.status_code == 200:
             detailed_inspection = response.json()
@@ -180,4 +180,4 @@ async def test_api579_integration():
         print("   Check the FastAPI logs to see background calculation details.")
 
 if __name__ == "__main__":
-    asyncio.run(test_api579_integration())
+    test_api579_integration()

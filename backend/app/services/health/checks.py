@@ -217,6 +217,13 @@ class HealthChecker:
                 message=f"Connection failed: {str(e)}",
                 response_time_ms=(datetime.utcnow() - start).total_seconds() * 1000
             )
+
+    # TODO: [MONITORING] Add comprehensive monitoring and alerting system
+    # - Integrate with Prometheus/Grafana for metrics collection and visualization
+    # - Add custom metrics for safety-critical calculation performance and accuracy
+    # - Implement automated alerting for RSF < 0.9 and remaining life < 2 years
+    # - Add database query performance monitoring with slow query alerts
+    # - Implement service degradation detection and automatic failover mechanisms
     
     async def check_redis(self) -> ServiceHealth:
         """

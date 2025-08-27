@@ -125,6 +125,11 @@ class ApiClient {
     return data
   }
 
+  // TODO: [PERFORMANCE] Add request caching for equipment and inspection metadata
+  // - Implement cache invalidation strategy for real-time safety data
+  // - Add response compression for large calculation datasets
+  // - Consider request deduplication for concurrent identical requests
+
   // HTTP Methods with decimal precision preservation
   async get<T = any>(url: string, params?: Record<string, any>): Promise<T> {
     const response = await this.client.get<ApiResponse<T>>(url, { params })

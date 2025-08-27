@@ -65,7 +65,9 @@ async def lifespan(app: FastAPI):
                 ollama_health = await checker.check_ollama()
                 return redis_health, ollama_health
         
-        redis_health, ollama_health = asyncio.run(check_services())
+        # ✅ RESOLVED: [ASYNC_LIFESPAN] Fixed asyncio.run() warning by using direct await
+        # Now properly awaits check_services() within the async lifespan context
+        redis_health, ollama_health = await check_services()
         
         # Log Redis status
         if redis_health.status.value == "healthy":
@@ -89,7 +91,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Service health check failed: {e}")
         services_ok = False
-        # TODO: [LIFESPAN] Fix coroutine warning - convert check_services() to sync or properly await async calls
+        # ✅ RESOLVED: [LIFESPAN] Fixed coroutine warning by using proper await pattern
     
     if not services_ok:
         logger.warning("⚠️  Some services unavailable - running in degraded mode")
@@ -208,6 +210,12 @@ async def health_check():
     
     return JSONResponse(content=health_status, status_code=status_code)
 
+
+# TODO: [API_DOCS] Add comprehensive OpenAPI documentation and examples
+# - Add detailed operation descriptions for all safety-critical endpoints
+# - Include example request/response payloads with real calculation data
+# - Document decimal precision requirements and constraints
+# - Add API versioning strategy for future enhancements
 
 # TODO: Configuration endpoint (commented out due to missing settings)
 # @app.get("/config")

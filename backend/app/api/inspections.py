@@ -380,9 +380,16 @@ class InspectionRecordResponse(BaseModel):
 class ThicknessReadingBulkCreate(BaseModel):
     """Schema for adding thickness readings to existing inspection."""
     model_config = ConfigDict(
-        json_encoders={Decimal: lambda v: str(v)},
         str_strip_whitespace=True
     )
+    
+    @field_serializer('readings', when_used='json')
+    def serialize_readings(self, readings):
+        """Serialize decimal fields in readings to strings."""
+        return [
+            {**reading.dict(), **{k: str(v) for k, v in reading.dict().items() if isinstance(v, Decimal)}}
+            for reading in readings
+        ]
     
     readings: List[ThicknessReadingCreate] = Field(
         ..., 
@@ -400,13 +407,27 @@ class ThicknessReadingBulkCreate(BaseModel):
 class API579CalculationResponse(BaseModel):
     """Response schema for API 579 calculation results."""
     model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={
-            Decimal: lambda v: str(v),
-            UUID: lambda v: str(v),
-            datetime: lambda v: v.isoformat()
-        }
+        from_attributes=True
     )
+    
+    @field_serializer('minimum_required_thickness', 'remaining_strength_factor', 'maximum_allowable_pressure', 'remaining_life_years', 'confidence_score', when_used='json')
+    def serialize_decimal_fields(self, value: Optional[Decimal]) -> str:
+        """Serialize Decimal fields to string to preserve precision."""
+        if value is None:
+            return None
+        return str(value)
+        
+    @field_serializer('id', 'inspection_record_id', when_used='json')
+    def serialize_uuid_fields(self, value: UUID) -> str:
+        """Serialize UUID fields to string."""
+        return str(value)
+        
+    @field_serializer('next_inspection_date', 'created_at', when_used='json')
+    def serialize_datetime(self, value: Optional[datetime]) -> Optional[str]:
+        """Serialize datetime to ISO format."""
+        if value is None:
+            return None
+        return value.isoformat()
     
     id: UUID4
     inspection_record_id: UUID4
@@ -932,13 +953,14 @@ async def verify_inspection(
 
 class CorrosionAnalysisResponse(BaseModel):
     """Response schema for corrosion analysis results."""
-    model_config = ConfigDict(
-        json_encoders={
-            Decimal: lambda v: str(v),
-            UUID: lambda v: str(v),
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict()
+    
+    @field_serializer('current_min_thickness', 'corrosion_rate', 'remaining_life', when_used='json')
+    def serialize_decimal_fields(self, value):
+        """Serialize numeric fields to string to preserve precision."""
+        if isinstance(value, Decimal):
+            return str(value)
+        return value
     
     equipment_id: str
     inspection_id: str

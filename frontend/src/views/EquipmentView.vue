@@ -100,6 +100,12 @@
           :meta-key-selection="false"
           responsive-layout="scroll"
         >
+          <!-- TODO: [E2E_TESTING] Add Cypress/Playwright end-to-end tests -->
+          <!-- - Test complete equipment inspection workflow from creation to calculation results -->
+          <!-- - Verify decimal precision maintained through full user journey -->
+          <!-- - Test error handling and validation messages -->
+          <!-- - Add performance testing for large equipment datasets -->
+
           <template #empty>
             <div class="empty-state">
               <i class="pi pi-database" style="font-size: 3rem; color: var(--p-text-color-secondary);"></i>

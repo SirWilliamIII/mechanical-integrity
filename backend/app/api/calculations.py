@@ -11,7 +11,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from pydantic.types import UUID4
 
 from models.database import get_db, SessionLocal
@@ -52,11 +52,13 @@ class API579CalculationRequest(BaseModel):
 class API579CalculationResult(BaseModel):
     """Response schema for API 579 calculation results."""
     model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={
-            UUID: lambda v: str(v)
-        }
+        from_attributes=True
     )
+    
+    @field_serializer('id', 'inspection_record_id', when_used='json')
+    def serialize_uuid_fields(self, value: UUID) -> str:
+        """Serialize UUID fields to string."""
+        return str(value)
     
     id: UUID4
     inspection_record_id: UUID4

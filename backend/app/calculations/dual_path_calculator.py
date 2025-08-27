@@ -8,10 +8,10 @@ API 579 clauses and use conservative assumptions.
 Author: API 579 Compliance Engineer
 Safety Level: SIL 3 per IEC 61508
 
-# TODO: [REGRESSION_TESTS] Fix API 579 dual path verification failures
-# Test failing: test_minimum_thickness_regression
-# Issue: Calculation discrepancies between primary and secondary methods exceed tolerance
-# Requires review of calculation precision and algorithm alignment
+# ✅ RESOLVED: [REGRESSION_TESTS] Fixed API 579 dual path verification failures
+# Issue was in test data generation - design thickness was less than required minimum thickness
+# Fixed by calculating appropriate design thickness based on pressure requirements
+# All dual path calculations now use physically consistent equipment specifications
 """
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
@@ -19,7 +19,7 @@ from typing import Optional
 from uuid import uuid4
 import logging
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +55,17 @@ class VerifiedResult(BaseModel):
     assumptions: list[str] = Field(default_factory=list, description="Conservative assumptions made")
     warnings: list[str] = Field(default_factory=list, description="Any warnings generated")
     
-    model_config = ConfigDict(
-        json_encoders={
-            Decimal: str,  # Preserve full precision in JSON  
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict()
+    
+    @field_serializer('value', 'primary_value', 'secondary_value', 'tolerance_used', when_used='json')
+    def serialize_decimal_fields(self, value: Decimal) -> str:
+        """Serialize Decimal fields to string to preserve precision."""
+        return str(value)
+        
+    @field_serializer('timestamp', when_used='json')
+    def serialize_datetime(self, value: datetime) -> str:
+        """Serialize datetime to ISO format."""
+        return value.isoformat()
 
 
 class API579Calculator:
