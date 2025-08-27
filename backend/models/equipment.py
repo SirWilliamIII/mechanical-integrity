@@ -3,6 +3,10 @@ Equipment models for mechanical integrity management.
 
 Defines equipment registry for petroleum industry assets with API 579 compliance data.
 All design specifications are critical for fitness-for-service calculations.
+
+# TODO: [SAFETY_CRITICAL] Migrate Float fields to Decimal/Numeric for safety-critical precision
+# Affected fields: design_pressure, design_temperature, design_thickness, corrosion_allowance
+# Risk: Current Float precision loss violates API 579 ±0.001 inch accuracy requirements
 """
 from datetime import datetime
 from decimal import Decimal

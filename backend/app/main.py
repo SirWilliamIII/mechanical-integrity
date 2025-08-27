@@ -89,6 +89,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Service health check failed: {e}")
         services_ok = False
+        # TODO: [LIFESPAN] Fix coroutine warning - convert check_services() to sync or properly await async calls
     
     if not services_ok:
         logger.warning("⚠️  Some services unavailable - running in degraded mode")

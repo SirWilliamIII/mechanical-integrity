@@ -10,7 +10,10 @@ import httpx
 BASE_URL = "http://localhost:8001"
 
 async def test_api579_integration():
-    """Test the complete API 579 integration workflow."""
+    """Test the complete API 579 integration workflow.
+    
+    # TODO: [INTEGRATION_TEST] Fix httpx connection failure - ensure FastAPI test server is running or use TestClient
+    """
     
     async with httpx.AsyncClient(timeout=30.0) as client:
         print("🧪 Testing API 579 Integration")
