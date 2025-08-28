@@ -115,7 +115,7 @@ async def get_current_active_user(
     return current_user
 
 
-async def require_role(required_role: UserRole):
+def require_role(required_role: UserRole):
     """
     Create a dependency that requires a specific user role.
     
@@ -204,8 +204,8 @@ def require_inspection_permission():
 
 
 # Safety-critical calculation permission dependency
-RequireCalculationPermission = Depends(require_calculation_permission())
-RequireInspectionPermission = Depends(require_inspection_permission())
+RequireCalculationPermission = Depends(require_calculation_permission)
+RequireInspectionPermission = Depends(require_inspection_permission)
 
 # Role-based dependencies
 RequireAdmin = Depends(require_admin)

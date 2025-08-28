@@ -22,20 +22,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv for fast Python package management
-RUN pip install uv
+# No need for uv when using requirements.txt with pip
 
 # Create application directory
 WORKDIR /app
 
 # Copy dependency files
-COPY pyproject.toml uv.lock* ./
+COPY requirements.txt ./
 
-# Install Python dependencies with uv
-RUN uv sync --frozen --no-dev
+# Install Python dependencies with pip
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source code
-COPY . .
+COPY backend/ .
 
 # Build any necessary assets or run pre-deployment tasks
 RUN echo "Build completed for ${BUILD_ENV} environment v${APP_VERSION}"
@@ -68,8 +67,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /bin/bash appuser
 
-# Install uv in production image
-RUN pip install uv
+# No need for uv in production image
 
 # Set working directory
 WORKDIR /app
@@ -112,8 +110,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy development requirements and install
-COPY --from=builder /app/pyproject.toml /app/uv.lock* /app/
-RUN uv sync --frozen
+COPY --from=builder /app/requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Set development environment
 ENV ENVIRONMENT=development \
@@ -130,8 +128,8 @@ FROM development AS testing
 
 USER root
 
-# Install testing dependencies
-RUN uv sync --frozen --all-extras
+# Install testing dependencies (dev dependencies already in requirements.txt)
+RUN pip install --no-cache-dir pytest pytest-cov black ruff mypy
 
 # Copy test files
 COPY --chown=appuser:appuser tests/ /app/tests/

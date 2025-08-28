@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import (
     get_current_active_user,
-    RequireAdmin,
-    RequireEngineer,
+    require_admin,
+    require_engineer,
 )
 from app.auth.models import User
 from app.auth.schemas import (
@@ -142,7 +142,7 @@ async def change_password(
 
 
 # Admin endpoints for user management
-@router.post("/users", response_model=UserSchema, dependencies=[RequireAdmin])
+@router.post("/users", response_model=UserSchema, dependencies=[Depends(require_admin)])
 async def create_user(
     user_create: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)]
@@ -161,7 +161,7 @@ async def create_user(
         )
 
 
-@router.get("/users/{user_id}", response_model=UserSchema, dependencies=[RequireAdmin])
+@router.get("/users/{user_id}", response_model=UserSchema, dependencies=[Depends(require_admin)])
 async def get_user(
     user_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)]
@@ -179,7 +179,7 @@ async def get_user(
     return UserSchema.model_validate(user)
 
 
-@router.put("/users/{user_id}", response_model=UserSchema, dependencies=[RequireAdmin])
+@router.put("/users/{user_id}", response_model=UserSchema, dependencies=[Depends(require_admin)])
 async def update_user(
     user_id: uuid.UUID,
     user_update: UserUpdate,
@@ -198,7 +198,7 @@ async def update_user(
     return UserSchema.model_validate(updated_user)
 
 
-@router.delete("/users/{user_id}", dependencies=[RequireAdmin])
+@router.delete("/users/{user_id}", dependencies=[Depends(require_admin)])
 async def deactivate_user(
     user_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)]
@@ -216,7 +216,7 @@ async def deactivate_user(
     return {"message": "User deactivated successfully"}
 
 
-@router.post("/users/{user_id}/unlock", dependencies=[RequireAdmin])
+@router.post("/users/{user_id}/unlock", dependencies=[Depends(require_admin)])
 async def unlock_user(
     user_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)]
@@ -235,7 +235,7 @@ async def unlock_user(
 
 
 # Engineer-only endpoint example
-@router.get("/engineer-info", dependencies=[RequireEngineer])
+@router.get("/engineer-info", dependencies=[Depends(require_engineer)])
 async def get_engineer_info():
     """Example endpoint requiring engineer-level permissions."""
     return {

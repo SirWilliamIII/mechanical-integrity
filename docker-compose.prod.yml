@@ -7,8 +7,8 @@ services:
   # FastAPI application
   api:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
       target: production
       args:
         BUILD_ENV: production
