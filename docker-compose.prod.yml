@@ -48,6 +48,15 @@ services:
       MAX_UPLOAD_SIZE_MB: 100
       
       # Safety-critical parameters
+      
+    # TODO: [PRODUCTION_SCALING] Add horizontal pod autoscaler configuration
+    # Current gap: Single instance deployment may not handle high inspection volumes
+    # Need: Kubernetes HPA with CPU/memory thresholds and Redis-based session sharing
+    # Priority: High - Required for facilities with 1000+ pieces of equipment
+    deploy:
+      replicas: 1  # Should be configurable based on load
+      # TODO: [RESOURCE_LIMITS] Define memory/CPU limits based on API 579 calculation load
+      # Testing needed: Profile memory usage during concurrent Level 3 assessments
       API579_DEFAULT_SAFETY_FACTOR: 0.9
       API579_DEFAULT_CORROSION_RATE: 0.005
     

@@ -48,6 +48,10 @@ class EquipmentBase(BaseModel):
     
     # TODO: [VALIDATION] Add comprehensive material-pressure-temperature validation
     # Cross-reference material specs with ASME pressure-temperature rating charts
+    # TODO: [INTEGRATION] Add CMMS system integration for work order generation
+    # Gap: No automatic work order creation when RSF < 0.9 or remaining life < 2 years
+    # Systems: SAP PM, Maximo, Maintenance Connection integration via REST APIs
+    # Business value: Seamless transition from assessment to maintenance execution
     
     model_config = ConfigDict()
     

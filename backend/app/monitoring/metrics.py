@@ -3,8 +3,6 @@ Prometheus metrics for monitoring API performance and safety-critical operations
 """
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
 from prometheus_client.core import CollectorRegistry
-import time
-from typing import Dict, Any
 
 # Create custom registry for application metrics
 REGISTRY = CollectorRegistry()
@@ -45,6 +43,28 @@ CALCULATION_ERRORS = Counter(
     'api579_calculation_errors_total',
     'Total API 579 calculation errors',
     ['calculation_type', 'error_type'],
+    registry=REGISTRY
+)
+
+# TODO: [SAFETY_MONITORING] Add critical safety threshold alerts
+# Need: Real-time monitoring for RSF < 0.9, remaining life < 2 years
+# Integration: PagerDuty/OpsGenie alerts for immediate engineering response
+# Context: Safety-critical petroleum equipment requires instant notification
+SAFETY_ALERTS = Counter(
+    'safety_critical_alerts_total',
+    'Critical safety threshold violations',
+    ['alert_type', 'equipment_type', 'severity'],
+    registry=REGISTRY
+)
+
+# TODO: [COMPLIANCE_MONITORING] Track regulatory audit trail completeness
+# Gap: No monitoring of audit trail integrity or completeness
+# Need: Metrics for missing documentation, incomplete calculations
+# Compliance: Required for OSHA PSM and API 579 regulatory reviews
+COMPLIANCE_VIOLATIONS = Counter(
+    'compliance_violations_total',
+    'Regulatory compliance violations detected',
+    ['violation_type', 'severity'],
     registry=REGISTRY
 )
 

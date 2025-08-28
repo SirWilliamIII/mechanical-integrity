@@ -6,20 +6,13 @@ and safety-critical calculation accuracy.
 """
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Tuple, Optional
-from decimal import Decimal
+from typing import Dict, Any, List, Optional
 
-import asyncpg
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 from sqlalchemy import text
 
 from app.services.health.checks import ServiceHealth, ServiceStatus
 from models.database import get_db
-from models.equipment import Equipment
-from models.inspection import InspectionRecord
-from app.monitoring.metrics import MetricsCollector
-from core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)

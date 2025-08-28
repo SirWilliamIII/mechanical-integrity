@@ -1,7 +1,7 @@
 """
 Authentication API router for user management and JWT authentication.
 """
-from typing import Annotated, List
+from typing import Annotated
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -20,7 +20,6 @@ from app.auth.schemas import (
     UserPasswordUpdate,
     LoginRequest,
     LoginResponse,
-    Token,
 )
 from app.auth.service import AuthService, AuthenticationError
 from models.database import get_db

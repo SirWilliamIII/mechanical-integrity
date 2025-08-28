@@ -9,11 +9,11 @@ Pre-loads frequently accessed data to improve performance:
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 from decimal import Decimal
 
 from app.cache.redis_client import get_redis
-from app.calculations.constants import API579Constants, MATERIAL_PROPERTIES
+from app.calculations.constants import API579Constants
 from models.equipment import Equipment
 from models.inspection import API579Calculation
 from sqlalchemy.orm import Session

@@ -8,8 +8,6 @@ from typing import Dict, List, Tuple, Optional
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
-import tempfile
-import os
 
 import ollama
 from pypdf import PdfReader
@@ -235,7 +233,7 @@ class InspectionDocumentExtractor:
             data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
             confidences = [int(conf) for conf in data['conf'] if int(conf) > 0]
             return sum(confidences) / len(confidences) / 100.0 if confidences else 0.0
-        except:
+        except Exception:
             return 0.5  # Default medium confidence
     
     def _extract_with_regex(self, page_texts: List[Dict]) -> Dict[str, List[ExtractionResult]]:

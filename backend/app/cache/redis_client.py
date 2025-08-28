@@ -27,6 +27,16 @@ class RedisClient:
     async def connect(self):
         """Initialize Redis connection with connection pooling."""
         try:
+            # TODO: [CACHE_OPTIMIZATION] Implement intelligent cache warming for material properties
+            # Gap: Cold cache on startup causes delays for first API 579 calculations
+            # Implementation: Pre-load ASME material database on service startup
+            # Performance impact: First calculation 2-5s delay -> <100ms response
+            
+            # TODO: [CACHE_STRATEGY] Add cache TTL based on data criticality
+            # Current: Generic expiry for all cached data
+            # Need: Equipment specs (24h), material properties (7d), calculations (1h)
+            # Safety: Never cache safety-critical calculation results longer than 1 hour
+            
             self._connection_pool = redis.ConnectionPool.from_url(
                 settings.REDIS_URL,
                 max_connections=20,

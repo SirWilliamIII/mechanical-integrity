@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.auth.models import User, UserRole
-from app.auth.schemas import TokenData
 from app.auth.security import verify_token
 from models.database import get_db
 

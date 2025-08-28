@@ -5,14 +5,17 @@ Implements security headers and input validation for safety-critical systems.
 """
 import ipaddress
 import re
+import time
+import logging
 from typing import List, Optional
-from urllib.parse import urlparse
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -99,8 +102,52 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in ["/health", "/healthz", "/ready"]:
             return await call_next(request)
         
-        # TODO: Implement Redis-based distributed rate limiting for production
-        # This is a basic in-memory implementation for development
+        # Redis-based distributed rate limiting for production
+        try:
+            from app.cache.redis_client import get_redis
+            redis_client = await get_redis()
+            
+            if redis_client:
+                # Sliding window rate limiting (100 requests per minute)
+                window_size = 60  # seconds
+                max_requests = 100
+                key = f"rate_limit:{client_ip}"
+                
+                # Sliding window using sorted sets
+                current_time = time.time()
+                pipeline = redis_client.pipeline()
+                
+                # Remove old entries outside the window
+                pipeline.zremrangebyscore(key, 0, current_time - window_size)
+                # Count current requests in window
+                pipeline.zcard(key)
+                # Add current request
+                pipeline.zadd(key, {str(current_time): current_time})
+                # Set expiry for cleanup
+                pipeline.expire(key, window_size + 1)
+                
+                results = await pipeline.execute()
+                current_requests = results[1]
+                
+                if current_requests >= max_requests:
+                    return JSONResponse(
+                        status_code=429,
+                        content={"error": "Rate limit exceeded. Try again later."}
+                    )
+                    
+        except Exception as e:
+            # If Redis fails, continue without rate limiting rather than blocking requests
+            logger.warning(f"Rate limiting failed: {e}")
+            
+        # TODO: [SECURITY_AUDIT] Implement calculation integrity checksums
+        # Gap: No verification that API 579 calculations haven't been tampered with
+        # Need: HMAC signatures for calculation inputs/outputs, blockchain audit trail
+        # Compliance: Required for regulatory audits and forensic investigations
+        
+        # TODO: [ZERO_TRUST] Add equipment access control by facility/department
+        # Current: All authenticated users see all equipment
+        # Enhancement: Role-based equipment access, multi-tenant isolation
+        # Use case: Contractors should only see equipment they're authorized to inspect
         
         return await call_next(request)
     

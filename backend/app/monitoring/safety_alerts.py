@@ -4,7 +4,6 @@ Safety-critical alerting system for mechanical integrity monitoring.
 Implements real-time alerting for RSF < 0.9, remaining life < 2 years,
 and other safety-critical thresholds per API 579 requirements.
 """
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -18,7 +17,6 @@ from sqlalchemy import and_, or_
 from models.inspection import API579Calculation
 from models.equipment import Equipment, EquipmentCriticality
 from app.monitoring.metrics import SAFETY_ALERTS, COMPLIANCE_VIOLATIONS
-from core.config import settings
 
 logger = logging.getLogger(__name__)
 

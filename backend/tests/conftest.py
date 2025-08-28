@@ -30,10 +30,12 @@ except ImportError:
     Base = MockBase()
     
     def get_db():
-        # TODO: [TESTING] Replace mock get_db() with proper test database fixture
-        # This stub prevents import failures but doesn't provide actual database functionality
-        # Need to implement proper test database session management for integration tests
-        pass
+        # Mock database dependency for tests that cannot connect to real DB
+        # Note: Use proper test database fixtures for integration tests requiring DB
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        TestSession = sessionmaker(bind=engine)
+        return TestSession()
     
     app = None
 
@@ -209,9 +211,24 @@ def assert_decimal_equal(actual: Decimal, expected: Decimal, precision: int = 3)
     """Assert decimal values are equal within precision."""
     assert round(actual, precision) == round(expected, precision)
 
-# TODO: [TESTING] Add database transaction rollback for better test isolation
-# Current test fixtures may have state leakage between test runs
-# Consider implementing proper transaction rollback in teardown for cleaner tests
+# Test database transaction rollback fixture
+@pytest.fixture
+def db_transaction():
+    """Provide database session with transaction rollback for test isolation."""
+    engine = create_engine("sqlite:///:memory:", echo=False)
+    Base.metadata.create_all(engine)
+    
+    connection = engine.connect()
+    transaction = connection.begin()
+    
+    SessionLocal = sessionmaker(bind=connection)
+    session = SessionLocal()
+    
+    yield session
+    
+    session.close()
+    transaction.rollback()
+    connection.close()
 
 
 def assert_response_success(response, expected_status: int = 200):

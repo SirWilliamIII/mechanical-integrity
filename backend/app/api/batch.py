@@ -73,6 +73,49 @@ async def create_equipment_batch(
                         })
                         continue
                     
+                    # ✅ RESOLVED: Comprehensive validation for batch equipment creation
+                    # Added: Material specification validation, pressure-temperature compatibility
+                    # Added: Thickness-pressure validation and API 579 safety checks
+                    # Protection: Invalid equipment data rejected before database insertion
+                    
+                    # Validate equipment data before creation
+                    try:
+                        from app.validation.validators import API579Validator
+                        validator = API579Validator(strict_mode=True)
+                        
+                        # Validate all safety-critical parameters
+                        validation_results = validator.validate_equipment_design(
+                            design_pressure=Decimal(str(equipment_data['design_pressure'])),
+                            design_temperature=Decimal(str(equipment_data['design_temperature'])),
+                            design_thickness=Decimal(str(equipment_data.get('design_thickness', '0.25'))),
+                            material_specification=equipment_data.get('material_specification', 'SA-516-70'),
+                            equipment_type=equipment_data['equipment_type'],
+                            service_description=equipment_data.get('service', 'General Service'),
+                            corrosion_allowance=Decimal(str(equipment_data.get('corrosion_allowance', '0.125')))
+                        )
+                        
+                        # Check for any validation failures
+                        validation_failures = [r for r in validation_results if not r.valid]
+                        if validation_failures:
+                            failures_list = []
+                            for failure in validation_failures:
+                                failures_list.append(f"{failure.field}: {failure.reason}")
+                            
+                            failed_equipment.append({
+                                "index": i,
+                                "tag_number": equipment_data['tag_number'],
+                                "error": f"Validation failed: {'; '.join(failures_list)}"
+                            })
+                            continue
+                            
+                    except Exception as validation_error:
+                        failed_equipment.append({
+                            "index": i,
+                            "tag_number": equipment_data['tag_number'],
+                            "error": f"Validation error: {str(validation_error)}"
+                        })
+                        continue
+                    
                     # Create equipment with proper type conversion
                     equipment = Equipment(
                         tag_number=equipment_data['tag_number'],

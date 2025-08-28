@@ -76,8 +76,8 @@ class TestDecimalPrecisionConsistency:
     
     def test_thickness_reading_precision_maintained(self, test_db_session):
         """Test that ThicknessReading correctly maintains decimal precision."""
-        # TODO: [DECIMAL_PRECISION] Critical safety issue - convert Equipment model to use Decimal fields instead of Float
-        # Current failure: precision loss in design_pressure/design_temperature/design_thickness fields
+        # ✅ RESOLVED: Equipment model now uses DECIMAL fields with proper precision
+        # Fixed: design_pressure (8,2), design_temperature (6,1), design_thickness (6,3)
         # Create equipment first
         equipment = Equipment(
             tag_number="V-102-TEST",

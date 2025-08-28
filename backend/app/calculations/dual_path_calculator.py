@@ -416,6 +416,11 @@ class API579Calculator:
         
         # TODO: [ENHANCEMENT] Add Monte Carlo simulation for remaining life uncertainty
         # Incorporate corrosion rate variability and measurement uncertainty
+        # TODO: [ML_ANALYTICS] Implement predictive corrosion modeling
+        # Current: Linear corrosion rate assumptions
+        # Enhancement: Machine learning models using historical inspection data
+        # Value: More accurate remaining life predictions, early failure detection
+        # Models: Time series forecasting, anomaly detection for accelerated corrosion
         
         return VerifiedResult(
             value=value,
