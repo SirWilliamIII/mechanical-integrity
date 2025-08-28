@@ -123,13 +123,17 @@
               <label for="inspector_certification" class="font-semibold">
                 Certification (SNT-TC-1A Level)
               </label>
-              <InputText
+              <Dropdown
                 id="inspector_certification"
                 v-model="formData.inspector_certification"
-                placeholder="e.g., Level II UT, Level III RT"
+                :options="certificationOptions"
+                option-label="label"
+                option-value="value"
+                placeholder="Select certification level"
                 :class="getFieldClass('inspector_certification')"
-                @input="handleFieldChange('inspector_certification')"
+                @change="handleFieldChange('inspector_certification')"
                 @blur="markFieldTouched('inspector_certification')"
+                editable
               />
               <small v-if="getFieldError('inspector_certification')" class="text-red-500">
                 {{ getFieldError('inspector_certification') }}
@@ -375,6 +379,37 @@ const corrosionTypeOptions = [
   { label: 'Erosion Corrosion', value: 'erosion' }
 ]
 
+const certificationOptions = [
+  // API 510 Inspector Certifications
+  { label: 'API 510 Inspector', value: 'API 510' },
+  { label: 'API 570 Inspector (Piping)', value: 'API 570' },
+  { label: 'API 653 Inspector (Tanks)', value: 'API 653' },
+  
+  // SNT-TC-1A NDT Certifications
+  { label: 'Level I UT (Ultrasonic)', value: 'Level I UT' },
+  { label: 'Level II UT (Ultrasonic)', value: 'Level II UT' },
+  { label: 'Level III UT (Ultrasonic)', value: 'Level III UT' },
+  { label: 'Level I RT (Radiographic)', value: 'Level I RT' },
+  { label: 'Level II RT (Radiographic)', value: 'Level II RT' },
+  { label: 'Level III RT (Radiographic)', value: 'Level III RT' },
+  { label: 'Level I MT (Magnetic Particle)', value: 'Level I MT' },
+  { label: 'Level II MT (Magnetic Particle)', value: 'Level II MT' },
+  { label: 'Level III MT (Magnetic Particle)', value: 'Level III MT' },
+  { label: 'Level I PT (Liquid Penetrant)', value: 'Level I PT' },
+  { label: 'Level II PT (Liquid Penetrant)', value: 'Level II PT' },
+  { label: 'Level III PT (Liquid Penetrant)', value: 'Level III PT' },
+  { label: 'Level I VT (Visual)', value: 'Level I VT' },
+  { label: 'Level II VT (Visual)', value: 'Level II VT' },
+  { label: 'Level III VT (Visual)', value: 'Level III VT' },
+  
+  // Combined Certifications
+  { label: 'API 510 + Level II UT', value: 'API 510 + Level II UT' },
+  { label: 'API 570 + Level II UT', value: 'API 570 + Level II UT' },
+  { label: 'API 653 + Level II UT', value: 'API 653 + Level II UT' },
+  { label: 'Level II Multi-Method (UT/RT/MT/PT)', value: 'Level II Multi-Method' },
+  { label: 'Level III Multi-Method (UT/RT/MT/PT/VT)', value: 'Level III Multi-Method' }
+]
+
 // Computed properties
 const isEditing = computed(() => Boolean(props.inspectionId))
 
@@ -409,8 +444,7 @@ function setupValidation() {
     rules.maxLength(100)
   ])
   registerField('inspector_certification', [
-    rules.maxLength(50),
-    rules.pattern(/^[A-Z0-9\-\/\s]*$/, 'Invalid certification format')
+    rules.maxLength(100)
   ])
   registerField('report_number', [
     rules.required('Report number is required'),

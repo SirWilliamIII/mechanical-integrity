@@ -1,6 +1,11 @@
 /**
  * Mock Data Service for Development and Testing
  * Provides realistic sample data for frontend development when backend is unavailable
+ * 
+ * TODO: [FRONTEND_INTEGRATION] Replace mock API calls with real backend endpoints
+ * Current issue: 8+ frontend API calls still using placeholder mock data instead of real backend
+ * Priority: High - prevents full integration testing and production deployment
+ * Implementation needed: Update all API service calls to use actual FastAPI endpoints
  */
 
 import type {

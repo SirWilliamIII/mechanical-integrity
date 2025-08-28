@@ -31,7 +31,7 @@
     >
       <strong>Statistical Confidence Warning:</strong> 
       Only {{ readings.length }} reading(s) provided. Minimum 3 readings recommended for statistical confidence.
-    </message>
+    </Message>
 
     <DataTable
       v-if="readings.length > 0"
@@ -358,10 +358,10 @@ const statisticalSummary = computed(() => {
 function addReading() {
   const newReading: ThicknessReadingCreateRequest & { tempId: string } = {
     tempId: `reading-${readings.value.length}-${Date.now()}`,
-    cml_number: '',
+    cml_number: `CML-${String(readings.value.length + 1).padStart(2, '0')}`,
     location_description: '',
-    thickness_measured: 0,
-    design_thickness: 0,
+    thickness_measured: null,
+    design_thickness: null,
     previous_thickness: undefined,
     grid_reference: '',
     surface_condition: ''

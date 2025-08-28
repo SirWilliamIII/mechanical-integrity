@@ -129,6 +129,10 @@ class ApiClient {
   // - Implement cache invalidation strategy for real-time safety data
   // - Add response compression for large calculation datasets
   // - Consider request deduplication for concurrent identical requests
+  // TODO: [UX_ENHANCEMENT] Add offline capability for field inspections
+  // Gap: Inspectors need to work in areas without reliable internet
+  // Solution: Service worker for offline data collection, sync on connection
+  // Priority: High - Common in remote petroleum facilities
 
   // HTTP Methods with decimal precision preservation
   async get<T = any>(url: string, params?: Record<string, any>): Promise<T> {

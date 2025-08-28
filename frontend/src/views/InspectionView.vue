@@ -130,9 +130,10 @@ function handleDocumentExtraction(extractionData: any) {
 
 @media (max-width: 1024px) {
   .inspection-view {
-  padding: 1rem;
-  max-width: 1200px;
-  margin: 0 auto;
+    padding: 1rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
 }
 
 @media (max-width: 768px) {
