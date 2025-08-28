@@ -21,6 +21,13 @@
           severity="primary"
         />
         <Button 
+          label="Validate Design" 
+          icon="pi pi-check-circle" 
+          @click="showValidationDialog = true"
+          severity="success"
+          outlined
+        />
+        <Button 
           label="Export" 
           icon="pi pi-download" 
           @click="exportEquipment"
@@ -234,6 +241,11 @@
       :equipment="selectedEquipmentForDetail"
     />
 
+    <!-- Equipment Validation Dialog -->
+    <EquipmentValidationDialog 
+      v-model:visible="showValidationDialog"
+    />
+
     <!-- Delete Confirmation Dialog -->
     <Dialog 
       v-model:visible="showDeleteDialog" 
@@ -282,6 +294,7 @@ import { useToast } from 'primevue/usetoast'
 import { equipmentApi } from '@/api/equipment'
 import EquipmentDialog from '@/components/equipment/EquipmentDialog.vue'
 import EquipmentDetailDialog from '@/components/equipment/EquipmentDetailDialog.vue'
+import EquipmentValidationDialog from '@/components/equipment/EquipmentValidationDialog.vue'
 import type { 
   Equipment, 
   EquipmentType, 
@@ -312,6 +325,7 @@ const sortOrder = ref<number>(1)
 const showCreateDialog = ref(false)
 const showDetailDialog = ref(false)
 const showDeleteDialog = ref(false)
+const showValidationDialog = ref(false)
 const selectedEquipmentForEdit = ref<Equipment | null>(null)
 const selectedEquipmentForDetail = ref<Equipment | null>(null)
 const equipmentToDelete = ref<Equipment | null>(null)

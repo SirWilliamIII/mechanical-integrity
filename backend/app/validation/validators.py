@@ -503,37 +503,92 @@ class API579Validator:
         Returns:
             ValidationResult with detailed validation information
         """
+        # Import here to avoid circular imports
+        from models.material_properties import ASMEMaterialDatabase
+        
         warnings = []
         
-        # Check if material is in known materials
-        known_materials = list(self.constants.MATERIAL_YIELD_STRENGTH.keys())
-        
-        if material_spec not in known_materials:
-            warnings.append(
-                f"Material {material_spec} not in standard materials database. "
-                "Manual verification of properties required"
-            )
-        
-        # Service condition checks
-        if service_conditions:
-            temp = service_conditions.get("temperature")
-            service = service_conditions.get("service_type", "").lower()
-            
-            # Check for material-service compatibility
-            if "stainless" not in material_spec.lower() and "acid" in service:
-                warnings.append(
-                    f"Carbon steel material {material_spec} in acid service "
-                    "requires careful corrosion monitoring"
-                )
-            
-            if temp and temp > Decimal("800") and "carbon" in material_spec.lower():
+        # Check if material is in expanded ASME database
+        if not ASMEMaterialDatabase.validate_material_specification(material_spec):
+            # Check legacy constants for backward compatibility
+            known_materials = list(self.constants.MATERIAL_YIELD_STRENGTH.keys())
+            if material_spec not in known_materials:
                 return ValidationResult(
                     valid=False,
                     field="material_specification",
                     value=material_spec,
-                    reason="Carbon steel not suitable above 800°F",
-                    api_reference="API 579 Annex F",
-                    action_required="Upgrade to high-temperature alloy"
+                    reason=f"Material {material_spec} not found in ASME materials database",
+                    api_reference="ASME Section II-D",
+                    action_required="Verify material specification or add to database"
+                )
+            else:
+                warnings.append(
+                    f"Material {material_spec} found in legacy database. "
+                    "Consider updating to ASME Section II-D properties"
+                )
+        
+        # Service condition checks
+        if service_conditions:
+            temp = service_conditions.get("temperature")
+            pressure = service_conditions.get("pressure")
+            service = service_conditions.get("service_type", "").lower()
+            
+            # Validate temperature-pressure combination for material
+            if temp and pressure:
+                try:
+                    allowable_stress, metadata = ASMEMaterialDatabase.get_allowable_stress(
+                        material_spec, Decimal(str(temp))
+                    )
+                    
+                    # Check if allowable stress is sufficient for design pressure
+                    if pressure and Decimal(str(pressure)) > allowable_stress:
+                        return ValidationResult(
+                            valid=False,
+                            field="material_specification",
+                            value=material_spec,
+                            reason=f"Design pressure {pressure} psi exceeds allowable stress {allowable_stress} psi at {temp}°F",
+                            api_reference="ASME Section VIII",
+                            action_required="Increase thickness, reduce pressure, or upgrade material"
+                        )
+                    
+                    # Check for high-temperature creep concerns
+                    if temp > Decimal("800") and any(steel in material_spec.lower() 
+                                                   for steel in ["sa-516", "sa-515", "sa-106"]):
+                        warnings.append(
+                            f"Carbon steel {material_spec} at {temp}°F approaches creep range. "
+                            "Consider time-dependent analysis per API 579 Part 10"
+                        )
+                    
+                    # Add interpolation warning if needed
+                    if metadata.get('interpolated'):
+                        warnings.append(
+                            f"Allowable stress interpolated for {temp}°F. "
+                            "Verify against ASME Section II-D tables"
+                        )
+                        
+                except ValueError as e:
+                    return ValidationResult(
+                        valid=False,
+                        field="material_specification", 
+                        value=material_spec,
+                        reason=f"Temperature validation failed: {str(e)}",
+                        api_reference="ASME Section II-D"
+                    )
+            
+            # Check for material-service compatibility
+            if "stainless" not in material_spec.lower() and any(corrosive in service 
+                                                              for corrosive in ["acid", "sour", "caustic"]):
+                warnings.append(
+                    f"Carbon steel material {material_spec} in {service} service "
+                    "requires enhanced corrosion monitoring per API 570"
+                )
+            
+            # Check low-temperature service compatibility
+            if temp and temp < Decimal("32") and not any(lt_spec in material_spec.lower() 
+                                                        for lt_spec in ["sa-333", "sa-350"]):
+                warnings.append(
+                    f"Material {material_spec} at {temp}°F requires brittle fracture assessment "
+                    "per API 579 Part 9"
                 )
         
         return ValidationResult(
@@ -541,7 +596,7 @@ class API579Validator:
             field="material_specification",
             value=material_spec,
             warnings=warnings,
-            api_reference="API 579 Annex F"
+            api_reference="ASME Section II-D"
         )
     
     def validate_calculation_inputs(
@@ -621,7 +676,7 @@ class API579Validator:
                             field=param,
                             value=eff
                         ))
-                except:
+                except (ValueError, TypeError):
                     results.append(ValidationResult(
                         valid=False,
                         field=param,
@@ -629,5 +684,197 @@ class API579Validator:
                         reason="Invalid efficiency value",
                         api_reference="ASME Section VIII, UW-12"
                     ))
+        
+        return results
+    
+    def validate_equipment_design(
+        self,
+        design_pressure: Union[Decimal, float, str],
+        design_temperature: Union[Decimal, float, str],
+        design_thickness: Union[Decimal, float, str],
+        material_specification: str,
+        equipment_type: EquipmentType,
+        service_description: Optional[str] = None,
+        corrosion_allowance: Optional[Union[Decimal, float, str]] = None
+    ) -> List[ValidationResult]:
+        """
+        Comprehensive equipment design validation with material-pressure-temperature cross-validation.
+        
+        Validates equipment design parameters against ASME codes and API 579 requirements,
+        ensuring compatibility between material properties, operating conditions, and safety factors.
+        
+        Args:
+            design_pressure: Design pressure in PSI
+            design_temperature: Design temperature in °F
+            design_thickness: Design thickness in inches
+            material_specification: ASME material specification (e.g., "SA-516-70")
+            equipment_type: Type of equipment (pressure vessel, tank, piping, etc.)
+            service_description: Service description for corrosion assessment
+            corrosion_allowance: Design corrosion allowance in inches
+            
+        Returns:
+            List[ValidationResult]: Comprehensive validation results for all parameters
+        """
+        # Import here to avoid circular imports
+        from models.material_properties import ASMEMaterialDatabase
+        
+        results = []
+        warnings_accumulator = []
+        
+        # Convert all inputs to Decimal for precision
+        try:
+            pressure_decimal = Decimal(str(design_pressure))
+            temperature_decimal = Decimal(str(design_temperature))
+            thickness_decimal = Decimal(str(design_thickness))
+            ca_decimal = Decimal(str(corrosion_allowance)) if corrosion_allowance else Decimal('0.125')
+        except (ValueError, TypeError, InvalidOperation) as e:
+            results.append(ValidationResult(
+                valid=False,
+                field="equipment_design",
+                value=f"P={design_pressure}, T={design_temperature}, t={design_thickness}",
+                reason=f"Invalid numeric inputs: {e}",
+                api_reference="ASME Section VIII",
+                action_required="Verify all numeric inputs are valid"
+            ))
+            return results
+        
+        # Individual parameter validation
+        pressure_result = self.validate_pressure(
+            pressure_decimal, 
+            pressure_type="design",
+            temperature=temperature_decimal,
+            equipment_type=equipment_type
+        )
+        results.append(pressure_result)
+        
+        temp_result = self.validate_temperature(
+            temperature_decimal,
+            material_specification,
+            service_type=service_description
+        )
+        results.append(temp_result)
+        
+        thickness_result = self.validate_thickness_measurement(
+            thickness_decimal,
+            equipment_type,
+            "Design thickness"
+        )
+        results.append(thickness_result)
+        
+        # Material validation with service conditions
+        service_conditions = {
+            "temperature": temperature_decimal,
+            "pressure": pressure_decimal,
+            "service_type": service_description or "general"
+        }
+        material_result = self.validate_material_specification(
+            material_specification,
+            equipment_type,
+            service_conditions
+        )
+        results.append(material_result)
+        
+        # Cross-validation: Material allowable stress vs design pressure
+        try:
+            allowable_stress, material_metadata = ASMEMaterialDatabase.get_allowable_stress(
+                material_specification, temperature_decimal
+            )
+            
+            # Calculate minimum required thickness using ASME formula
+            # t = P*R/(S*E - 0.6*P) for thin-walled vessels
+            # For conservative check, assume R=24" (typical), E=1.0 (full joint efficiency)
+            assumed_radius = Decimal('24.0')  # inches
+            joint_efficiency = Decimal('1.0')
+            
+            # Minimum thickness calculation per ASME Section VIII
+            denominator = allowable_stress * joint_efficiency - Decimal('0.6') * pressure_decimal
+            if denominator <= 0:
+                results.append(ValidationResult(
+                    valid=False,
+                    field="material_pressure_compatibility",
+                    value=f"{material_specification} @ {pressure_decimal} psi",
+                    reason=f"Design pressure {pressure_decimal} psi too high for material allowable stress {allowable_stress} psi",
+                    api_reference="ASME Section VIII, UG-27",
+                    action_required="Reduce design pressure or upgrade to higher strength material"
+                ))
+            else:
+                min_thickness = (pressure_decimal * assumed_radius) / denominator
+                
+                # Check if design thickness is adequate (including corrosion allowance)
+                required_thickness = min_thickness + ca_decimal
+                if thickness_decimal < required_thickness:
+                    results.append(ValidationResult(
+                        valid=False,
+                        field="thickness_adequacy",
+                        value=thickness_decimal,
+                        reason=f"Design thickness {thickness_decimal}\" insufficient. Required: {required_thickness:.3f}\" (minimum: {min_thickness:.3f}\" + CA: {ca_decimal}\")",
+                        api_reference="ASME Section VIII, UG-16",
+                        action_required="Increase design thickness or reduce design pressure"
+                    ))
+                else:
+                    # Thickness is adequate - add margin information
+                    margin = ((thickness_decimal - required_thickness) / required_thickness * 100)
+                    if margin < 10:
+                        warnings_accumulator.append(
+                            f"Design thickness margin only {margin:.1f}%. Consider additional safety margin"
+                        )
+                    
+                    results.append(ValidationResult(
+                        valid=True,
+                        field="thickness_adequacy",
+                        value=thickness_decimal,
+                        warnings=[f"Design margin: {margin:.1f}% above minimum required"],
+                        api_reference="ASME Section VIII, UG-16"
+                    ))
+            
+        except ValueError as e:
+            results.append(ValidationResult(
+                valid=False,
+                field="material_temperature_compatibility", 
+                value=f"{material_specification} @ {temperature_decimal}°F",
+                reason=f"Material-temperature validation failed: {str(e)}",
+                api_reference="ASME Section II-D"
+            ))
+        
+        # Equipment type specific validations
+        if equipment_type == EquipmentType.STORAGE_TANK:
+            # Storage tanks typically operate at low pressure
+            if pressure_decimal > Decimal('15'):
+                warnings_accumulator.append(
+                    f"Storage tank with design pressure {pressure_decimal} psi may require "
+                    "pressure vessel classification per API 650"
+                )
+        elif equipment_type == EquipmentType.PIPING:
+            # Piping has different thickness calculation methods
+            if thickness_decimal < Decimal('0.109'):  # Schedule 40 minimum for steel
+                warnings_accumulator.append(
+                    "Piping thickness below Schedule 40 minimum. Verify per ASME B31.3"
+                )
+        
+        # Service-specific warnings
+        if service_description:
+            service_lower = service_description.lower()
+            
+            # High-temperature service warnings
+            if temperature_decimal > Decimal('750') and any(term in service_lower 
+                                                          for term in ['steam', 'hot', 'thermal']):
+                warnings_accumulator.append(
+                    f"High-temperature {service_description} service requires enhanced inspection "
+                    "per API 579 Part 10 for creep damage"
+                )
+            
+            # Corrosive service warnings
+            if any(term in service_lower for term in ['acid', 'sour', 'caustic', 'chloride']):
+                if ca_decimal < Decimal('0.250'):
+                    warnings_accumulator.append(
+                        f"Corrosive {service_description} service with CA={ca_decimal}\" may be insufficient. "
+                        "Consider minimum 0.25\" corrosion allowance"
+                    )
+        
+        # Add accumulated warnings to the last result
+        if warnings_accumulator and results:
+            if not hasattr(results[-1], 'warnings') or results[-1].warnings is None:
+                results[-1].warnings = []
+            results[-1].warnings.extend(warnings_accumulator)
         
         return results

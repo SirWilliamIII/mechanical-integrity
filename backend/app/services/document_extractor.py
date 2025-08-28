@@ -4,13 +4,23 @@ Every extraction includes confidence and source mapping.
 """
 import json
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
+import tempfile
+import os
 
 import ollama
 from pypdf import PdfReader
+try:
+    import pytesseract
+    from pdf2image import convert_from_path
+    from PIL import Image
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
+    print("⚠️ OCR libraries not available. Install with: uv add pytesseract Pillow pdf2image")
 
 
 @dataclass
@@ -54,27 +64,45 @@ class InspectionDocumentExtractor:
         self.model = model_name
         self.client = ollama.Client()
         
-    async def extract_from_pdf(self, pdf_path: str) -> Dict:
+    async def extract_from_pdf(self, pdf_path: str, force_ocr: bool = False) -> Dict:
         """
-        Extract structured data from inspection PDF.
+        Extract structured data from inspection PDF with OCR fallback.
         Returns extraction results with full source tracking.
+        
+        Args:
+            pdf_path: Path to PDF file
+            force_ocr: Force OCR even if text extraction works
         """
-        # Extract text from PDF
+        # Step 1: Try direct text extraction first
         pdf_text, page_texts = self._extract_pdf_text(pdf_path)
         
-        # Step 1: Try regex patterns first (most reliable)
+        # Step 2: Check if text extraction was successful or if OCR is forced
+        needs_ocr = force_ocr or self._is_scanned_pdf(pdf_text, page_texts)
+        
+        if needs_ocr and OCR_AVAILABLE:
+            print("📷 Scanned PDF detected - using OCR extraction")
+            ocr_text, ocr_page_texts = await self._extract_with_ocr(pdf_path)
+            # Combine or replace text with OCR results
+            pdf_text = pdf_text + "\n\n=== OCR EXTRACTED TEXT ===\n" + ocr_text
+            page_texts.extend(ocr_page_texts)
+        elif needs_ocr and not OCR_AVAILABLE:
+            print("⚠️ Scanned PDF detected but OCR not available")
+        
+        # Step 3: Try regex patterns first (most reliable)
         regex_results = self._extract_with_regex(page_texts)
         
-        # Step 2: Use LLM for complex extractions
+        # Step 4: Use LLM for complex extractions
         llm_results = await self._extract_with_llm(pdf_text, regex_results)
         
-        # Step 3: Validate and combine results
+        # Step 5: Validate and combine results
         final_results = self._validate_and_merge(regex_results, llm_results)
         
         return {
             "document_path": pdf_path,
             "extraction_timestamp": datetime.utcnow().isoformat(),
-            "total_pages": len(page_texts),
+            "total_pages": len([p for p in page_texts if "ocr" not in p.get("source", "")]),
+            "ocr_pages": len([p for p in page_texts if "ocr" in p.get("source", "")]),
+            "extraction_method": "ocr" if needs_ocr else "text",
             "extractions": final_results,
             "quality_metrics": self._calculate_quality_metrics(final_results)
         }
@@ -90,10 +118,125 @@ class InspectionDocumentExtractor:
             full_text += f"\n--- Page {i+1} ---\n{text}"
             page_texts.append({
                 "page_num": i + 1,
-                "text": text
+                "text": text,
+                "source": "text_extraction"
             })
             
         return full_text, page_texts
+    
+    def _is_scanned_pdf(self, pdf_text: str, page_texts: List[Dict]) -> bool:
+        """
+        Detect if PDF is scanned (images) rather than text-based.
+        
+        Heuristics:
+        1. Very little text extracted
+        2. Mostly whitespace/formatting characters
+        3. No meaningful words
+        """
+        if not pdf_text or len(pdf_text.strip()) < 100:
+            return True
+            
+        # Count actual words vs total characters
+        words = re.findall(r'\b[a-zA-Z]{3,}\b', pdf_text)
+        word_ratio = len(' '.join(words)) / len(pdf_text) if pdf_text else 0
+        
+        # If less than 10% meaningful text, likely scanned
+        if word_ratio < 0.1:
+            return True
+            
+        # Check for common inspection terms
+        inspection_terms = ['thickness', 'inspection', 'equipment', 'vessel', 'tank', 'corrosion', 'pressure']
+        found_terms = sum(1 for term in inspection_terms if term.lower() in pdf_text.lower())
+        
+        # If no inspection-related terms found, might be scanned
+        return found_terms == 0
+    
+    async def _extract_with_ocr(self, pdf_path: str) -> Tuple[str, List[Dict]]:
+        """
+        Extract text from scanned PDF using OCR.
+        
+        Returns:
+            Tuple of (full_ocr_text, page_texts)
+        """
+        if not OCR_AVAILABLE:
+            return "", []
+            
+        try:
+            # Convert PDF pages to images
+            images = convert_from_path(pdf_path, dpi=300)  # High DPI for better OCR
+            
+            full_ocr_text = ""
+            page_texts = []
+            
+            for i, image in enumerate(images):
+                # Apply image preprocessing for better OCR
+                processed_image = self._preprocess_image_for_ocr(image)
+                
+                # Extract text using Tesseract with industrial-specific config
+                custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,()[]{}:;-/\\ '
+                
+                try:
+                    ocr_text = pytesseract.image_to_string(processed_image, config=custom_config)
+                    confidence = self._get_ocr_confidence(processed_image)
+                    
+                    full_ocr_text += f"\n--- OCR Page {i+1} (Confidence: {confidence:.2f}) ---\n{ocr_text}"
+                    page_texts.append({
+                        "page_num": i + 1,
+                        "text": ocr_text,
+                        "source": "ocr",
+                        "ocr_confidence": confidence
+                    })
+                    
+                except Exception as e:
+                    print(f"OCR failed for page {i+1}: {e}")
+                    page_texts.append({
+                        "page_num": i + 1,
+                        "text": "",
+                        "source": "ocr_failed",
+                        "error": str(e)
+                    })
+            
+            return full_ocr_text, page_texts
+            
+        except Exception as e:
+            print(f"OCR extraction failed: {e}")
+            return "", []
+    
+    def _preprocess_image_for_ocr(self, image: Image.Image) -> Image.Image:
+        """
+        Preprocess image to improve OCR accuracy.
+        
+        Common preprocessing for industrial documents:
+        1. Convert to grayscale
+        2. Increase contrast
+        3. Remove noise
+        """
+        try:
+            # Convert to grayscale
+            if image.mode != 'L':
+                image = image.convert('L')
+            
+            # You could add more sophisticated preprocessing here:
+            # - Deskewing
+            # - Noise removal
+            # - Contrast enhancement
+            # - Edge sharpening
+            
+            return image
+        except Exception as e:
+            print(f"Image preprocessing failed: {e}")
+            return image
+    
+    def _get_ocr_confidence(self, image: Image.Image) -> float:
+        """
+        Get OCR confidence score for the extracted text.
+        """
+        try:
+            data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+            confidences = [int(conf) for conf in data['conf'] if int(conf) > 0]
+            return sum(confidences) / len(confidences) / 100.0 if confidences else 0.0
+        except:
+            return 0.5  # Default medium confidence
     
     def _extract_with_regex(self, page_texts: List[Dict]) -> Dict[str, List[ExtractionResult]]:
         """Extract using deterministic regex patterns."""

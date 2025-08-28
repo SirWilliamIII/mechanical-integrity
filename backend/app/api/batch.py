@@ -233,7 +233,6 @@ async def _process_batch_calculations(
     """
     logger.info(f"Processing batch calculations {batch_id} for {len(equipment_tags)} equipment")
     
-    api579_service = API579Service(session_factory)
     successful_calculations = 0
     failed_calculations = 0
     

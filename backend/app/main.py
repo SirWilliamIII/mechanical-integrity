@@ -3,23 +3,32 @@ Mechanical Integrity AI - Main FastAPI Application
 Safety-critical API for equipment inspection and API 579 compliance.
 """
 from contextlib import asynccontextmanager
+from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 import logging
 
+from app.middleware.security import SecurityHeadersMiddleware, InputValidationMiddleware
+from app.monitoring.middleware import MonitoringMiddleware, UserContextMiddleware, MetricsEndpointMiddleware
+from app.monitoring.logging import setup_logging
+
 from core.config import settings
-from app.api import equipment, inspections, calculations, audit, analysis, rbi, compliance, batch
+from app.api import equipment, inspections, calculations, audit, analysis, rbi, compliance, batch, documents
+from app.auth import router as auth_router
 from models.database import verify_db_connection
 from app.services.health import get_system_health
+from app.services.health.advanced_checks import get_comprehensive_health
+from app.cache.redis_client import get_redis, close_redis
+from app.cache.cache_manager import warm_material_cache
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure structured logging
+setup_logging()
 logger = logging.getLogger(__name__)
+
+# Application start time for uptime calculation
+start_time = datetime.utcnow()
 
 
 @asynccontextmanager
@@ -57,7 +66,6 @@ async def lifespan(app: FastAPI):
     # Redis and Ollama health checks for production readiness
     try:
         from app.services.health.checks import HealthChecker
-        import asyncio
         
         async def check_services():
             async with HealthChecker() as checker:
@@ -93,6 +101,19 @@ async def lifespan(app: FastAPI):
         services_ok = False
         # ✅ RESOLVED: [LIFESPAN] Fixed coroutine warning by using proper await pattern
     
+    # Initialize Redis cache
+    try:
+        redis_client = await get_redis()
+        logger.info("✅ Redis cache initialized")
+        
+        # Warm up material properties cache
+        await warm_material_cache()
+        logger.info("✅ Material cache warmed")
+        
+    except Exception as e:
+        logger.warning(f"⚠️  Redis cache initialization failed: {e}")
+        # Redis failure is not critical for basic operation
+    
     if not services_ok:
         logger.warning("⚠️  Some services unavailable - running in degraded mode")
         # raise RuntimeError("Required services not available")
@@ -103,6 +124,13 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("👋 Shutting down Mechanical Integrity AI System")
+    
+    # Close Redis connection
+    try:
+        await close_redis()
+        logger.info("✅ Redis connection closed")
+    except Exception as e:
+        logger.error(f"Error closing Redis connection: {e}")
 
 
 # Create FastAPI app
@@ -129,15 +157,34 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS middleware for frontend
+# Security middleware - CORS with strict configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vue/React dev servers
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],  # Explicit methods
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Language", 
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+    ],
+    expose_headers=["X-Process-Time"],
 )
 
+# Monitoring middleware (order matters - add early in chain)
+app.add_middleware(MonitoringMiddleware)
+app.add_middleware(UserContextMiddleware)
+app.add_middleware(MetricsEndpointMiddleware)
+
+# Security middleware
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    InputValidationMiddleware,
+    max_request_size=settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024,  # Convert MB to bytes
+)
 
 # Request timing middleware
 @app.middleware("http")
@@ -190,16 +237,36 @@ async def root():
     }
 
 
-# Health check endpoint
+# Health check endpoints
 @app.get("/health")
 async def health_check():
     """
-    Comprehensive health check for all services.
-    Used by monitoring systems and load balancers.
+    Basic health check for load balancers.
+    Fast response for basic service availability.
     """
     health_status = await get_system_health()
     
     # Determine HTTP status code based on overall status
+    status_map = {
+        "healthy": 200,
+        "degraded": 503, 
+        "unhealthy": 503,
+        "unknown": 503
+    }
+    status_code = status_map.get(health_status["status"], 503)
+    
+    return JSONResponse(content=health_status, status_code=status_code)
+
+
+@app.get("/health/detailed")
+async def detailed_health_check():
+    """
+    Comprehensive health check including safety-critical monitoring.
+    Used by monitoring systems for complete system assessment.
+    """
+    health_status = await get_comprehensive_health()
+    
+    # Determine HTTP status code
     status_map = {
         "healthy": 200,
         "degraded": 503,
@@ -209,6 +276,49 @@ async def health_check():
     status_code = status_map.get(health_status["status"], 503)
     
     return JSONResponse(content=health_status, status_code=status_code)
+
+
+@app.get("/health/ready")
+async def readiness_check():
+    """
+    Kubernetes readiness probe - check if application is ready to serve traffic.
+    """
+    try:
+        # Quick database connectivity check
+        if not verify_db_connection():
+            return JSONResponse(
+                content={"status": "not_ready", "reason": "database_unavailable"},
+                status_code=503
+            )
+        
+        return JSONResponse(
+            content={
+                "status": "ready", 
+                "timestamp": datetime.utcnow().isoformat(),
+                "version": settings.API_VERSION
+            },
+            status_code=200
+        )
+    except Exception as e:
+        return JSONResponse(
+            content={"status": "not_ready", "reason": str(e)},
+            status_code=503
+        )
+
+
+@app.get("/health/live")
+async def liveness_check():
+    """
+    Kubernetes liveness probe - check if application is alive.
+    """
+    return JSONResponse(
+        content={
+            "status": "alive",
+            "timestamp": datetime.utcnow().isoformat(),
+            "uptime_seconds": int((datetime.utcnow() - start_time).total_seconds())
+        },
+        status_code=200
+    )
 
 
 # TODO: [API_DOCS] Add comprehensive OpenAPI documentation and examples
@@ -271,6 +381,17 @@ app.include_router(
     batch.router,
     prefix=f"{settings.API_V1_STR}/batch",
     tags=["batch"],
+)
+
+app.include_router(
+    documents.router,
+    tags=["documents"],
+)
+
+app.include_router(
+    auth_router.router,
+    prefix=f"{settings.API_V1_STR}/auth",
+    tags=["authentication"],
 )
 
 

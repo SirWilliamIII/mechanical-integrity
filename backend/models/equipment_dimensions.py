@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Optional
 from enum import Enum
 import uuid
-from sqlalchemy import DECIMAL, Text
+from sqlalchemy import DECIMAL, Text, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import ForeignKey
 

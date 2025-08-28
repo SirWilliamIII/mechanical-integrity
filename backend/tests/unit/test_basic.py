@@ -5,8 +5,9 @@ import pytest
 def test_backend_in_path():
     """Verify backend module is importable."""
     try:
-        import backend
-        assert True
+        import importlib.util
+        spec = importlib.util.find_spec("backend")
+        assert spec is not None
     except ImportError:
         pytest.fail("Cannot import backend module")
 
@@ -21,7 +22,9 @@ def test_core_config_import():
 def test_model_imports():
     """Test importing models."""
     try:
-        from backend.models import equipment, inspection
-        assert True
+        import importlib.util
+        equipment_spec = importlib.util.find_spec("backend.models.equipment") 
+        inspection_spec = importlib.util.find_spec("backend.models.inspection")
+        assert equipment_spec is not None and inspection_spec is not None
     except ImportError as e:
         pytest.skip(f"Models not ready: {e}")

@@ -1,0 +1,302 @@
+# Production Docker Compose for Mechanical Integrity AI System
+# Safety-critical petroleum industry compliance deployment
+
+version: '3.8'
+
+services:
+  # FastAPI application
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        BUILD_ENV: production
+        APP_VERSION: "${APP_VERSION:-1.0.0}"
+    container_name: mechanical-integrity-api
+    restart: unless-stopped
+    
+    environment:
+      # Application settings
+      ENVIRONMENT: production
+      DEBUG: false
+      PROJECT_NAME: "Mechanical Integrity AI"
+      API_VERSION: "${APP_VERSION:-1.0.0}"
+      
+      # Security settings
+      SECRET_KEY: "${SECRET_KEY:?SECRET_KEY environment variable is required}"
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      
+      # Database connection
+      POSTGRES_USER: "${POSTGRES_USER:-mechanical_integrity}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}"
+      POSTGRES_SERVER: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: "${POSTGRES_DB:-mechanical_integrity}"
+      
+      # Redis connection
+      REDIS_URL: "redis://redis:6379/0"
+      
+      # Ollama LLM service
+      OLLAMA_BASE_URL: "http://ollama:11434"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-llama3.2}"
+      
+      # CORS origins for production
+      BACKEND_CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}"
+      
+      # File upload settings
+      MAX_UPLOAD_SIZE_MB: 100
+      
+      # Safety-critical parameters
+      API579_DEFAULT_SAFETY_FACTOR: 0.9
+      API579_DEFAULT_CORROSION_RATE: 0.005
+    
+    ports:
+      - "8000:8000"
+    
+    volumes:
+      - ./uploads:/app/uploads
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    networks:
+      - mechanical_integrity
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=mechanical-integrity-api"
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:14-alpine
+    container_name: mechanical-integrity-db
+    restart: unless-stopped
+    
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-mechanical_integrity}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}"
+      POSTGRES_DB: "${POSTGRES_DB:-mechanical_integrity}"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    
+    ports:
+      - "5432:5432"
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mechanical_integrity} -d ${POSTGRES_DB:-mechanical_integrity}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    networks:
+      - mechanical_integrity
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=mechanical-integrity-db"
+
+  # Redis cache and job queue
+  redis:
+    image: redis:7-alpine
+    container_name: mechanical-integrity-redis
+    restart: unless-stopped
+    
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    
+    volumes:
+      - redis_data:/data
+    
+    ports:
+      - "6379:6379"
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    
+    networks:
+      - mechanical_integrity
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=mechanical-integrity-redis"
+
+  # Ollama LLM service for document analysis
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mechanical-integrity-llm
+    restart: unless-stopped
+    
+    volumes:
+      - ollama_data:/root/.ollama
+    
+    ports:
+      - "11434:11434"
+    
+    environment:
+      # Limit GPU usage if available
+      OLLAMA_NUM_PARALLEL: "${OLLAMA_PARALLEL:-1}"
+      OLLAMA_MAX_LOADED_MODELS: "${OLLAMA_MAX_MODELS:-1}"
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    networks:
+      - mechanical_integrity
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=mechanical-integrity-llm"
+
+  # Nginx reverse proxy and load balancer
+  nginx:
+    image: nginx:alpine
+    container_name: mechanical-integrity-nginx
+    restart: unless-stopped
+    
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    
+    depends_on:
+      - api
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    networks:
+      - mechanical_integrity
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=mechanical-integrity-nginx"
+
+  # Prometheus monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mechanical-integrity-prometheus
+    restart: unless-stopped
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    
+    ports:
+      - "9090:9090"
+    
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    
+    networks:
+      - mechanical_integrity
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+        labels: "service=mechanical-integrity-prometheus"
+
+  # Grafana dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mechanical-integrity-grafana
+    restart: unless-stopped
+    
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-admin123}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-simple-json-datasource"
+    
+    ports:
+      - "3000:3000"
+    
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    
+    depends_on:
+      - prometheus
+    
+    networks:
+      - mechanical_integrity
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+        labels: "service=mechanical-integrity-grafana"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+  prometheus_data:
+    driver: local  
+  grafana_data:
+    driver: local
+  nginx_logs:
+    driver: local
+
+networks:
+  mechanical_integrity:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16

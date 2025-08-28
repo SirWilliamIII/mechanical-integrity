@@ -16,8 +16,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import models and database configuration
 from models.base import Base
-from models import *  # Import all models
 from models.database import DATABASE_URL
+# Import all models explicitly for metadata generation
+from models import equipment, inspection, equipment_dimensions  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -11,7 +11,9 @@ import type {
   EquipmentUpdateRequest,
   EquipmentSummary,
   PaginatedResponse,
-  ApiQueryParams
+  ApiQueryParams,
+  EquipmentValidationRequest,
+  ValidationResult
 } from '@/types'
 
 export class EquipmentApi {
@@ -100,6 +102,20 @@ export class EquipmentApi {
     // Note: File download requires custom handling - this may need to be implemented differently
     const response = await apiClient.get(`${this.basePath}/export`, { format })
     return response as any
+  }
+
+  /**
+   * Validate equipment design parameters with comprehensive material-pressure-temperature checks
+   */
+  async validateEquipmentDesign(data: EquipmentValidationRequest): Promise<ValidationResult[]> {
+    return apiClient.post(`${this.basePath}/validate-design`, data)
+  }
+
+  /**
+   * Get list of supported ASME material specifications
+   */
+  async getSupportedMaterials(): Promise<string[]> {
+    return apiClient.get(`${this.basePath}/materials`)
   }
 }
 

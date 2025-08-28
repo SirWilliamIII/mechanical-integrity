@@ -1,0 +1,104 @@
+# Docker ignore file for Mechanical Integrity AI System
+# Exclude unnecessary files from Docker build context
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Development files
+docker-compose*.yml
+Makefile
+.pre-commit-config.yaml
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Test files (exclude from production builds)
+tests/
+test_*.py
+*_test.py
+pytest.ini
+.coveragerc
+
+# Database files (should be external)
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads (should be external volumes)
+uploads/
+reports/
+
+# Development scripts
+scripts/dev/
+scripts/local/
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+Jenkinsfile
+
+# Environment files (security)
+.env.local
+.env.dev
+.env.prod
+.env.example
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Node.js (if any frontend assets)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

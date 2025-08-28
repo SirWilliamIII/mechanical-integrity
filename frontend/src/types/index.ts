@@ -116,3 +116,24 @@ export interface ComplianceMetric {
   status: 'good' | 'warning' | 'critical'
   trend: 'up' | 'down' | 'stable'
 }
+
+// Equipment validation types
+export interface EquipmentValidationRequest {
+  design_pressure: string
+  design_temperature: string  
+  design_thickness: string
+  material_specification: string
+  equipment_type: 'pressure_vessel' | 'storage_tank' | 'piping' | 'heat_exchanger'
+  service_description?: string
+  corrosion_allowance?: string
+}
+
+export interface ValidationResult {
+  valid: boolean
+  field: string
+  value: string
+  reason?: string
+  api_reference?: string
+  action_required?: string
+  warnings: string[]
+}

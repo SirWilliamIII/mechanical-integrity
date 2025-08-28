@@ -2,9 +2,10 @@
 Manages all environment variables and settings for the Mechanical Integrity AI system.
 All safety-critical parameters are defined here with appropriate defaults.
 """
-from typing import List, Union, Literal
+from typing import List, Union, Literal, Optional
+import logging
 
-from pydantic import AnyHttpUrl, Field, field_validator, ValidationInfo
+from pydantic import AnyHttpUrl, Field, field_validator, ValidationInfo, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -115,9 +116,11 @@ class Settings(BaseSettings):
     API579_DEFAULT_CORROSION_RATE: float = 0.005  # inches/year - must be validated per equipment
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env.local", ".env"],  # Local overrides global
+        env_file_encoding="utf-8",
         case_sensitive=True,
-        extra="ignore",  # Changed from 'forbid' to 'ignore' to allow extra env vars
+        extra="ignore",  # Allow extra env vars for flexibility
+        validate_default=True,  # Validate default values
     )
 
     @field_validator("DEBUG", mode="before")
@@ -182,12 +185,183 @@ class Settings(BaseSettings):
         else:
             raise ValueError(f"Invalid CORS origins format: {value}")
 
-    # TODO: [PRODUCTION] Add production deployment configuration
-    # - SSL/TLS certificate paths and validation
-    # - Production database connection pooling settings (max_connections, overflow)
-    # - Redis cluster configuration for high availability
-    # - Load balancer health check endpoint configuration
-    # - Logging configuration with proper log rotation and structured JSON logging
+    # ============================================================================
+    # PRODUCTION DEPLOYMENT CONFIGURATION
+    # ============================================================================
+    
+    # SSL/TLS Configuration
+    SSL_CERT_PATH: Optional[str] = Field(None, description="SSL certificate file path")
+    SSL_KEY_PATH: Optional[str] = Field(None, description="SSL private key file path")
+    SSL_ENABLED: bool = Field(False, description="Enable SSL/TLS")
+    
+    @field_validator("SSL_ENABLED")
+    @classmethod
+    def validate_ssl_config(cls, ssl_enabled: bool, info: ValidationInfo) -> bool:
+        """Validate SSL configuration in production."""
+        if hasattr(info, 'data') and info.data:
+            environment = info.data.get('ENVIRONMENT', '').lower()
+            ssl_cert = info.data.get('SSL_CERT_PATH')
+            ssl_key = info.data.get('SSL_KEY_PATH')
+            
+            if environment == 'production' and ssl_enabled:
+                if not ssl_cert or not ssl_key:
+                    raise ValueError(
+                        "SSL_CERT_PATH and SSL_KEY_PATH must be provided when SSL_ENABLED=true in production"
+                    )
+        return ssl_enabled
+    
+    # Database Connection Pooling
+    DB_POOL_SIZE: int = Field(20, description="Database connection pool size")
+    DB_MAX_OVERFLOW: int = Field(30, description="Database connection pool overflow")
+    DB_POOL_TIMEOUT: int = Field(30, description="Database connection timeout seconds")
+    DB_POOL_RECYCLE: int = Field(3600, description="Database connection recycle time seconds")
+    
+    # Redis Configuration
+    REDIS_POOL_SIZE: int = Field(20, description="Redis connection pool size")
+    REDIS_TIMEOUT: int = Field(5, description="Redis operation timeout seconds")
+    REDIS_MAX_CONNECTIONS: int = Field(50, description="Maximum Redis connections")
+    
+    # Load Balancer and Proxy Configuration
+    TRUSTED_PROXIES: List[str] = Field(
+        ["127.0.0.1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+        description="Trusted proxy IP addresses/ranges"
+    )
+    
+    @field_validator("TRUSTED_PROXIES", mode="before")
+    @classmethod
+    def parse_trusted_proxies(cls, value):
+        """Parse trusted proxy list from environment."""
+        if isinstance(value, str):
+            return [proxy.strip() for proxy in value.split(",") if proxy.strip()]
+        return value
+    
+    # Monitoring and Alerting
+    PROMETHEUS_ENABLED: bool = Field(True, description="Enable Prometheus metrics")
+    PROMETHEUS_PREFIX: str = Field("mechanical_integrity", description="Prometheus metric prefix")
+    
+    GRAFANA_ENABLED: bool = Field(False, description="Enable Grafana dashboards")
+    GRAFANA_URL: Optional[str] = Field(None, description="Grafana dashboard URL")
+    
+    # Alerting Configuration
+    SLACK_WEBHOOK_URL: Optional[str] = Field(None, description="Slack webhook for alerts")
+    ALERT_EMAIL_RECIPIENTS: List[str] = Field([], description="Email recipients for alerts")
+    
+    @field_validator("ALERT_EMAIL_RECIPIENTS", mode="before")
+    @classmethod
+    def parse_email_list(cls, value):
+        """Parse email list from environment."""
+        if isinstance(value, str):
+            return [email.strip() for email in value.split(",") if email.strip()]
+        return value
+    
+    # Backup Configuration
+    BACKUP_ENABLED: bool = Field(False, description="Enable automated backups")
+    BACKUP_SCHEDULE: str = Field("0 2 * * *", description="Backup cron schedule")
+    BACKUP_RETENTION_DAYS: int = Field(30, description="Backup retention period")
+    BACKUP_S3_BUCKET: Optional[str] = Field(None, description="S3 bucket for backups")
+    
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = Field(True, description="Enable rate limiting")
+    RATE_LIMIT_REQUESTS_PER_MINUTE: int = Field(100, description="Requests per minute per IP")
+    RATE_LIMIT_BURST: int = Field(20, description="Rate limit burst allowance")
+    
+    # Feature Flags
+    FEATURE_AI_ANALYSIS: bool = Field(True, description="Enable AI document analysis")
+    FEATURE_REAL_TIME_MONITORING: bool = Field(False, description="Enable real-time monitoring")
+    FEATURE_ADVANCED_ANALYTICS: bool = Field(False, description="Enable advanced analytics")
+    
+    # Compliance and Audit
+    AUDIT_LOG_ENABLED: bool = Field(True, description="Enable audit logging")
+    AUDIT_LOG_RETENTION_DAYS: int = Field(2555, description="Audit log retention (7 years)")  # 7 years = 2555 days
+    COMPLIANCE_MODE: Literal["strict", "standard", "development"] = Field(
+        "strict", 
+        description="Compliance enforcement level"
+    )
+    
+    @field_validator("COMPLIANCE_MODE")
+    @classmethod
+    def validate_compliance_mode(cls, compliance_mode: str, info: ValidationInfo) -> str:
+        """Ensure strict compliance mode in production."""
+        if hasattr(info, 'data') and info.data:
+            environment = info.data.get('ENVIRONMENT', '').lower()
+            if environment == 'production' and compliance_mode != 'strict':
+                raise ValueError(
+                    "COMPLIANCE_MODE must be 'strict' in production environment for regulatory compliance"
+                )
+        return compliance_mode
+    
+    # Performance Tuning
+    MAX_CONCURRENT_CALCULATIONS: int = Field(10, description="Maximum concurrent API 579 calculations")
+    CALCULATION_TIMEOUT_SECONDS: int = Field(300, description="Calculation timeout (5 minutes)")
+    CACHE_DEFAULT_TTL_SECONDS: int = Field(3600, description="Default cache TTL (1 hour)")
+    
+    # Development and Testing
+    ENABLE_DEVELOPMENT_ENDPOINTS: bool = Field(False, description="Enable development-only endpoints")
+    
+    @field_validator("ENABLE_DEVELOPMENT_ENDPOINTS")
+    @classmethod
+    def validate_dev_endpoints(cls, enable_dev: bool, info: ValidationInfo) -> bool:
+        """Disable development endpoints in production."""
+        if hasattr(info, 'data') and info.data:
+            environment = info.data.get('ENVIRONMENT', '').lower()
+            if environment == 'production' and enable_dev:
+                raise ValueError(
+                    "ENABLE_DEVELOPMENT_ENDPOINTS must be false in production environment"
+                )
+        return enable_dev
+    
+    def get_database_url(self, async_driver: bool = True) -> str:
+        """Get database URL with proper driver."""
+        driver = "postgresql+asyncpg" if async_driver else "postgresql"
+        return (
+            f"{driver}://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+    
+    def is_feature_enabled(self, feature: str) -> bool:
+        """Check if a feature flag is enabled."""
+        feature_map = {
+            "ai_analysis": self.FEATURE_AI_ANALYSIS,
+            "real_time_monitoring": self.FEATURE_REAL_TIME_MONITORING,
+            "advanced_analytics": self.FEATURE_ADVANCED_ANALYTICS,
+        }
+        return feature_map.get(feature, False)
+    
+    def get_trusted_proxy_networks(self):
+        """Get trusted proxy networks as ipaddress objects."""
+        import ipaddress
+        networks = []
+        for proxy in self.TRUSTED_PROXIES:
+            try:
+                networks.append(ipaddress.ip_network(proxy, strict=False))
+            except ValueError:
+                logger.warning(f"Invalid proxy network: {proxy}")
+        return networks
 
 
-settings = Settings()
+# Create settings instance with validation
+try:
+    settings = Settings()
+    
+    # Log configuration summary (non-sensitive values only)
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"Configuration loaded: {settings.PROJECT_NAME} v{settings.API_VERSION} "
+        f"({settings.ENVIRONMENT})"
+    )
+    
+    if settings.is_production:
+        logger.info("Production mode: Enhanced security and compliance enabled")
+        if settings.SSL_ENABLED:
+            logger.info("SSL/TLS enabled")
+        if settings.PROMETHEUS_ENABLED:
+            logger.info("Prometheus metrics enabled")
+        if settings.AUDIT_LOG_ENABLED:
+            logger.info(f"Audit logging enabled (retention: {settings.AUDIT_LOG_RETENTION_DAYS} days)")
+    
+except ValidationError as e:
+    logger.error(f"Configuration validation failed: {e}")
+    raise
+except Exception as e:
+    logger.error(f"Configuration loading failed: {e}")
+    raise

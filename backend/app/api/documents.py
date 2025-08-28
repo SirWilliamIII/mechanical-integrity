@@ -18,14 +18,22 @@ extractor = InspectionDocumentExtractor()
 
 
 @router.post("/extract")
-async def extract_inspection_data(file: UploadFile = File(...)):
+async def extract_inspection_data(
+    file: UploadFile = File(...),
+    force_ocr: bool = False
+):
     """
-    Extract structured data from inspection PDF.
+    Extract structured data from inspection PDF with OCR support.
+    
+    Parameters:
+    - file: PDF file to process
+    - force_ocr: Force OCR even if text extraction works
     
     Returns:
     - Extracted data with confidence scores
     - Source references for every value
     - Warnings for low-confidence extractions
+    - OCR metadata if used
     """
     # Validate file type
     if not file.filename.endswith('.pdf'):
@@ -38,18 +46,21 @@ async def extract_inspection_data(file: UploadFile = File(...)):
         tmp_path = tmp_file.name
     
     try:
-        # Extract data
-        results = await extractor.extract_from_pdf(tmp_path)
+        # Extract data with OCR support
+        results = await extractor.extract_from_pdf(tmp_path, force_ocr=force_ocr)
         
         # Check quality metrics
         metrics = results.get("quality_metrics", {})
         if metrics.get("high_confidence_ratio", 0) < 0.5:
             results["warning"] = "Low confidence extraction - manual review recommended"
         
-        # Format response
+        # Format response with OCR metadata
         response = {
             "status": "success",
             "filename": file.filename,
+            "extraction_method": results.get("extraction_method", "text"),
+            "total_pages": results.get("total_pages", 0),
+            "ocr_pages": results.get("ocr_pages", 0),
             "extractions": _format_extractions(results["extractions"]),
             "metrics": metrics,
             "requires_review": metrics.get("extractions_with_warnings", 0) > 0
@@ -106,7 +117,7 @@ async def get_demo_data():
                 "method": "llm"
             },
             "corrosion_rate": {
-                "value": null,
+                "value": None,
                 "confidence": 0,
                 "note": "Not found in document - would need calculation"
             }

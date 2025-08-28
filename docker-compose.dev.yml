@@ -1,0 +1,224 @@
+# Development Docker Compose for Mechanical Integrity AI System
+# Development environment with hot reload and debugging tools
+
+version: '3.8'
+
+services:
+  # FastAPI application with development features
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+      args:
+        BUILD_ENV: development
+    container_name: mechanical-integrity-api-dev
+    restart: unless-stopped
+    
+    environment:
+      # Development settings
+      ENVIRONMENT: development
+      DEBUG: true
+      PROJECT_NAME: "Mechanical Integrity AI (Dev)"
+      
+      # Security (less strict for development)
+      SECRET_KEY: "dev-secret-key-change-in-production"
+      ACCESS_TOKEN_EXPIRE_MINUTES: 1440  # 24 hours for development
+      
+      # Database connection
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_SERVER: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: "mechanical_integrity_dev"
+      
+      # Redis connection  
+      REDIS_URL: "redis://redis:6379/0"
+      
+      # Ollama LLM service
+      OLLAMA_BASE_URL: "http://ollama:11434"
+      OLLAMA_MODEL: "llama3.2"
+      
+      # CORS - allow all origins for development
+      BACKEND_CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+      
+      # File upload settings
+      MAX_UPLOAD_SIZE_MB: 50
+    
+    ports:
+      - "8000:8000"
+    
+    volumes:
+      # Mount source code for hot reload
+      - ./backend:/app
+      - dev_uploads:/app/uploads
+      - dev_reports:/app/reports
+      - dev_logs:/app/logs
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    networks:
+      - mechanical_integrity_dev
+    
+    # Development command with hot reload
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # PostgreSQL database for development
+  postgres:
+    image: postgres:14-alpine
+    container_name: mechanical-integrity-db-dev
+    restart: unless-stopped
+    
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: "mechanical_integrity_dev"
+    
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    
+    ports:
+      - "5432:5432"
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mechanical_integrity_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    
+    networks:
+      - mechanical_integrity_dev
+
+  # Redis for development
+  redis:
+    image: redis:7-alpine
+    container_name: mechanical-integrity-redis-dev
+    restart: unless-stopped
+    
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    
+    ports:
+      - "6379:6379"
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    
+    networks:
+      - mechanical_integrity_dev
+
+  # Ollama LLM service (lighter for development)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mechanical-integrity-llm-dev
+    restart: unless-stopped
+    
+    volumes:
+      - ollama_dev_data:/root/.ollama
+    
+    ports:
+      - "11434:11434"
+    
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    
+    networks:
+      - mechanical_integrity_dev
+    
+    # Auto-pull model on startup (development only)
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 10 && ollama pull llama3.2 && wait"]
+
+  # Vue.js frontend development server
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: mechanical-integrity-frontend-dev
+    restart: unless-stopped
+    
+    environment:
+      VITE_API_BASE_URL: "http://localhost:8000"
+      NODE_ENV: "development"
+    
+    ports:
+      - "5173:5173"
+    
+    volumes:
+      # Mount source code for hot reload
+      - ./frontend:/app
+      - /app/node_modules  # Anonymous volume for node_modules
+    
+    depends_on:
+      - api
+    
+    networks:
+      - mechanical_integrity_dev
+    
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+  # Database administration tool
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: mechanical-integrity-pgadmin-dev
+    restart: unless-stopped
+    
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "admin@mechanical-integrity.local"
+      PGADMIN_DEFAULT_PASSWORD: "admin123"
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    
+    ports:
+      - "5050:80"
+    
+    volumes:
+      - pgadmin_dev_data:/var/lib/pgadmin
+    
+    depends_on:
+      - postgres
+    
+    networks:
+      - mechanical_integrity_dev
+
+  # Redis administration tool
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: mechanical-integrity-redis-commander-dev
+    restart: unless-stopped
+    
+    environment:
+      REDIS_HOSTS: "local:redis:6379"
+    
+    ports:
+      - "8081:8081"
+    
+    depends_on:
+      - redis
+    
+    networks:
+      - mechanical_integrity_dev
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  ollama_dev_data:
+    driver: local
+  pgadmin_dev_data:
+    driver: local
+  dev_uploads:
+    driver: local
+  dev_reports:
+    driver: local
+  dev_logs:
+    driver: local
+
+networks:
+  mechanical_integrity_dev:
+    driver: bridge

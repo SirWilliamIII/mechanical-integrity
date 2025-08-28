@@ -11,8 +11,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, field_validator, field_serializer, ConfigDict, computed_field
 
-from models.equipment import Equipment
+from models.equipment import Equipment, EquipmentType
 from models.database import get_db
+from app.validation.validators import API579Validator, ValidationResult
 
 router = APIRouter()
 
@@ -223,6 +224,20 @@ async def create_equipment(
     return EquipmentResponse.from_db_model(db_equipment)
 
 
+@router.get("/materials", response_model=List[str])
+async def list_supported_materials():
+    """
+    List all supported ASME material specifications in the database.
+    
+    Returns materials from the expanded ASME Section II-D database
+    with temperature-dependent properties for accurate allowable stress calculations.
+    """
+    from models.material_properties import ASMEMaterialDatabase
+    
+    supported_materials = ASMEMaterialDatabase.get_supported_materials()
+    return sorted(supported_materials)
+
+
 @router.get("/", response_model=List[EquipmentResponse])
 async def list_equipment(
     criticality: Optional[str] = None,
@@ -380,3 +395,94 @@ async def get_inspection_status(
         "max_interval_years": max_interval_years,
         "risk_level": "HIGH" if days_overdue > 30 and equipment.criticality == "HIGH" else "MEDIUM"
     }
+
+
+class EquipmentValidationRequest(BaseModel):
+    """Request schema for comprehensive equipment design validation."""
+    design_pressure: Decimal = Field(..., description="Design pressure in PSI")
+    design_temperature: Decimal = Field(..., description="Design temperature in °F")
+    design_thickness: Decimal = Field(..., description="Design thickness in inches")
+    material_specification: str = Field(..., description="ASME material specification")
+    equipment_type: str = Field(..., pattern="^(pressure_vessel|storage_tank|piping|heat_exchanger)$")
+    service_description: Optional[str] = Field(None, description="Service description")
+    corrosion_allowance: Optional[Decimal] = Field(Decimal('0.125'), description="Corrosion allowance in inches")
+    
+    model_config = ConfigDict()
+
+    @field_serializer('design_pressure', 'design_temperature', 'design_thickness', 'corrosion_allowance', when_used='json')
+    def serialize_decimal_fields(self, value: Decimal) -> str:
+        return str(value) if value is not None else None
+
+
+class ValidationResultResponse(BaseModel):
+    """Response schema for validation results."""
+    valid: bool
+    field: str
+    value: str
+    reason: Optional[str] = None
+    api_reference: Optional[str] = None
+    action_required: Optional[str] = None
+    warnings: List[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_validation_result(cls, result: ValidationResult) -> "ValidationResultResponse":
+        """Convert ValidationResult to API response."""
+        return cls(
+            valid=result.valid,
+            field=result.field,
+            value=str(result.value),
+            reason=result.reason,
+            api_reference=result.api_reference,
+            action_required=result.action_required,
+            warnings=result.warnings or []
+        )
+
+
+@router.post("/validate-design", response_model=List[ValidationResultResponse])
+async def validate_equipment_design(
+    validation_request: EquipmentValidationRequest
+):
+    """
+    Comprehensive equipment design validation with material-pressure-temperature cross-validation.
+    
+    This endpoint performs safety-critical validation of equipment design parameters
+    according to ASME codes and API 579 standards, including:
+    
+    - Individual parameter validation (pressure, temperature, thickness, material)
+    - Cross-validation of material properties vs operating conditions
+    - ASME Section VIII thickness adequacy calculations
+    - Service-specific compatibility warnings
+    - API 579 compliance checks
+    
+    Returns detailed validation results with specific API references and 
+    required actions for any non-compliance issues.
+    """
+    validator = API579Validator(strict_mode=True)
+    
+    # Convert string equipment type to enum
+    try:
+        equipment_type_enum = EquipmentType(validation_request.equipment_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid equipment type: {validation_request.equipment_type}"
+        )
+    
+    # Perform comprehensive validation
+    validation_results = validator.validate_equipment_design(
+        design_pressure=validation_request.design_pressure,
+        design_temperature=validation_request.design_temperature,
+        design_thickness=validation_request.design_thickness,
+        material_specification=validation_request.material_specification,
+        equipment_type=equipment_type_enum,
+        service_description=validation_request.service_description,
+        corrosion_allowance=validation_request.corrosion_allowance
+    )
+    
+    # Convert to API response format
+    response_results = [
+        ValidationResultResponse.from_validation_result(result) 
+        for result in validation_results
+    ]
+    
+    return response_results

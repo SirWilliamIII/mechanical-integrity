@@ -220,8 +220,6 @@ class API579Service:
             # Check calculation capabilities
             capabilities = self._assess_calculation_capabilities(params)
             
-            # Initialize calculator
-            calculator = API579Calculator()
             
             # Perform calculations
             calculations = {}
