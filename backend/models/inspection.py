@@ -258,8 +258,8 @@ class ThicknessReading(Base, UUIDMixin, TimestampMixin):
     # ========================================================================
     measurement_confidence: Mapped[Decimal] = mapped_column(
         DECIMAL(precision=5, scale=2),
-        default=Decimal('95.00'),
-        comment="Measurement confidence based on surface conditions"
+        nullable=False,
+        comment="Measurement confidence based on surface conditions - calculated dynamically via _calculate_confidence_level()"
     )
     surface_condition: Mapped[Optional[str]] = mapped_column(
         String(50),

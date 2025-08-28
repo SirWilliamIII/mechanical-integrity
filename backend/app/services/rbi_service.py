@@ -306,7 +306,9 @@ class RBIService:
         elif rsf < Decimal('0.9'):
             # Low RSF - ensure max 2 years per API 580 safety requirements  
             # TODO: [VALIDATION] Add unit tests for RSF edge cases around 0.9 threshold
-            # Verify 0.899 vs 0.901 RSF values produce correct interval differences
+            # Verify 0.899 vs 0.901 RSF values produce correct interval differences  
+            # Test cases: RSF=0.899→2yr max, RSF=0.901→normal reduction, boundary behavior
+            # Priority: HIGH - safety-critical threshold validation for inspection intervals
             base_interval = min(base_interval * Decimal('0.5'), Decimal('2.0'))
         elif rsf < Decimal('1.0'):
             # Moderate RSF reduction - standard degradation

@@ -114,6 +114,13 @@ class Settings(BaseSettings):
     # These values are critical for regulatory compliance - modify with extreme caution
     API579_DEFAULT_SAFETY_FACTOR: float = 0.9  # Conservative safety factor
     API579_DEFAULT_CORROSION_RATE: float = 0.005  # inches/year - must be validated per equipment
+    
+    # TODO: [COMPLIANCE-CRITICAL] Add SAFETY_FACTOR environment variable per audit findings
+    # Compliance audit identified missing SAFETY_FACTOR config (ref: compliance_audit_report.md line 26)  
+    # Required: SAFETY_FACTOR >= 2.0 for API 579 Part 5 conservative safety factor compliance
+    # Implementation: Add SAFETY_FACTOR: float = Field(ge=2.0, default=2.0) to config
+    # Priority: CRITICAL - blocking regulatory compliance certification
+    SAFETY_FACTOR: float = Field(default=2.0, ge=2.0, description="Global safety factor for API 579 calculations")
 
     model_config = SettingsConfigDict(
         env_file=[".env.local", ".env"],  # Local overrides global

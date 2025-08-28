@@ -95,6 +95,14 @@ class AnalysisService:
         """
         self.logger.info(f"Starting corrosion rate analysis for equipment {request.equipment_id}")
         
+        # Map confidence level strings to numerical values
+        confidence_map = {
+            "conservative": 0.90,  # Conservative for safety-critical
+            "nominal": 0.95,       # Standard engineering practice
+            "optimistic": 0.99     # High confidence for well-characterized systems
+        }
+        numeric_confidence = confidence_map[request.confidence_level]
+        
         try:
             with self.session_factory() as session:
                 # Validate equipment exists
@@ -117,7 +125,7 @@ class AnalysisService:
                 )
                 
                 # Perform trend analysis
-                trend_analysis = await self._perform_trend_analysis(cml_data, corrosion_rates)
+                trend_analysis = await self._perform_trend_analysis(cml_data, corrosion_rates, numeric_confidence)
                 
                 # Calculate remaining life projections
                 remaining_life = await self._calculate_remaining_life(
@@ -268,13 +276,21 @@ class AnalysisService:
     ) -> List[CMLCorrosionRate]:
         """Calculate corrosion rates for each CML using linear regression."""
         
+        # Map confidence level strings to numerical values
+        confidence_map = {
+            "conservative": 0.90,  # Conservative for safety-critical
+            "nominal": 0.95,       # Standard engineering practice
+            "optimistic": 0.99     # High confidence for well-characterized systems
+        }
+        numeric_confidence = confidence_map[confidence_level]
+        
         corrosion_rates = []
         
         for cml in cml_data:
             try:
                 # Perform linear regression on thickness vs time
                 rate, confidence_bounds = self._linear_regression_analysis(
-                    cml.measurements, include_prediction_intervals
+                    cml.measurements, include_prediction_intervals, numeric_confidence
                 )
                 
                 # Apply safety factors based on confidence level
@@ -327,7 +343,8 @@ class AnalysisService:
     def _linear_regression_analysis(
         self, 
         measurements: List[Tuple[datetime, Decimal]],
-        include_confidence_intervals: bool
+        include_confidence_intervals: bool,
+        numeric_confidence: float = 0.95
     ) -> Tuple[Decimal, Optional[Tuple[Decimal, Decimal]]]:
         """Perform linear regression to calculate corrosion rate."""
         
@@ -379,7 +396,7 @@ class AnalysisService:
         if include_confidence_intervals and n > 2:
             try:
                 confidence_bounds = self._calculate_confidence_intervals(
-                    x_values, y_values, slope, confidence_level=0.95
+                    x_values, y_values, slope, confidence_level=numeric_confidence
                 )
             except Exception as e:
                 self.logger.warning(f"Could not calculate confidence intervals: {e}")
@@ -445,7 +462,8 @@ class AnalysisService:
     async def _perform_trend_analysis(
         self, 
         cml_data: List[CMLData], 
-        corrosion_rates: List[CMLCorrosionRate]
+        corrosion_rates: List[CMLCorrosionRate],
+        numeric_confidence: float
     ) -> TrendAnalysis:
         """Perform overall trend analysis across all CMLs."""
         
@@ -497,7 +515,7 @@ class AnalysisService:
             maximum_rate_inches_per_year=max_rate,
             critical_locations=critical_locations,
             analysis_period_years=Decimal(str(analysis_period)),
-            statistical_confidence=Decimal('0.950')  # 95% confidence
+            statistical_confidence=Decimal(str(numeric_confidence))  # Dynamic confidence based on request
         )
     
     async def _calculate_remaining_life(

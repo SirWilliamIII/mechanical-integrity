@@ -62,6 +62,7 @@ class TestCORSConfiguration:
             headers={
                 "Origin": "http://localhost:5173",
                 "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "Content-Type",
             }
         )
         

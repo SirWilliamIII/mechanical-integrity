@@ -77,6 +77,45 @@ def _calculate_confidence_level(
     return base_confidence
 
 
+def _calculate_measurement_confidence(
+    surface_condition: Optional[str] = None,
+    inspection_method: str = "UT",
+    equipment_accessibility: str = "GOOD"
+) -> Decimal:
+    """
+    Calculate measurement confidence based on physical inspection conditions.
+    
+    Args:
+        surface_condition: Surface condition affecting measurement accuracy
+        inspection_method: Method used (UT, RT, etc.)
+        equipment_accessibility: How accessible the equipment is for inspection
+        
+    Returns:
+        Measurement confidence as Decimal (60-99)
+    """
+    base_confidence = Decimal("85.0")  # Good baseline for UT
+    
+    # Adjust for surface conditions  
+    if surface_condition:
+        surface_condition = surface_condition.upper()
+        if "EXCELLENT" in surface_condition or "GOOD" in surface_condition:
+            base_confidence = Decimal("95.0")
+        elif "FAIR" in surface_condition or "CLEAN" in surface_condition:
+            base_confidence = Decimal("90.0")
+        elif "POOR" in surface_condition or "ROUGH" in surface_condition:
+            base_confidence = Decimal("75.0")
+        elif "CORRODED" in surface_condition or "PITTED" in surface_condition:
+            base_confidence = Decimal("70.0")
+    
+    # Method-specific adjustments
+    if inspection_method == "RT":  # Radiographic testing
+        base_confidence = min(base_confidence + Decimal("5.0"), Decimal("99.0"))
+    elif inspection_method == "MT" or inspection_method == "PT":  # Magnetic/Penetrant 
+        base_confidence = max(base_confidence - Decimal("10.0"), Decimal("60.0"))
+    
+    return base_confidence
+
+
 def _calculate_corrosion_metrics(
     current_min_thickness: Decimal,
     previous_inspection: Optional[InspectionRecord],
@@ -546,6 +585,13 @@ async def create_inspection_record(
             len(thickness_values), has_historical_data
         )
         
+        # Calculate measurement confidence based on inspection conditions
+        measurement_confidence = _calculate_measurement_confidence(
+            surface_condition=getattr(inspection_data, 'surface_condition', None),
+            inspection_method=str(inspection_data.inspection_type),
+            equipment_accessibility="GOOD"  # Default - could be enhanced with actual field
+        )
+        
         # Create main inspection record
         db_inspection = InspectionRecord(
             equipment_id=str(equipment.id),
@@ -560,6 +606,7 @@ async def create_inspection_record(
             corrosion_type=inspection_data.corrosion_type,
             corrosion_rate_calculated=corrosion_rate,
             confidence_level=confidence_level,
+            measurement_confidence=measurement_confidence,
             findings=inspection_data.findings,
             recommendations=inspection_data.recommendations,
             follow_up_required=inspection_data.follow_up_required,
@@ -709,14 +756,11 @@ async def add_thickness_readings(
         inspection.avg_thickness = sum(all_thickness_values) / len(all_thickness_values)
         inspection.thickness_readings = [r.model_dump() if hasattr(r, 'model_dump') else r for r in all_thickness_readings]
         
-        # Update confidence level based on new reading count
+        # Update confidence level based on new reading count using dynamic calculation
         total_readings = len(all_thickness_values)
-        if total_readings >= 10:
-            inspection.confidence_level = Decimal("95.0")
-        elif total_readings >= 5:
-            inspection.confidence_level = Decimal("85.0")
-        else:
-            inspection.confidence_level = Decimal("70.0")
+        # Check if we have historical data (previous inspections for the same equipment)
+        has_historical_data = len(current_db_inspection.equipment.inspection_records) > 1
+        inspection.confidence_level = _calculate_confidence_level(total_readings, has_historical_data)
         
         db.commit()
         

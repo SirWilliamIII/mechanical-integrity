@@ -313,9 +313,11 @@ class API579Service:
             "joint_efficiency": Decimal("1.0"),  # Default - should be from equipment data
             "future_corrosion_allowance": Decimal("0.050"),  # Default 50 mils
             
-            # TODO: [DATABASE] Implement joint efficiency parameter lookup from equipment database
+            # TODO: [DATABASE] Implement joint efficiency parameter lookup from equipment database  
             # Joint efficiency should be retrieved from vessel fabrication records per ASME VIII-1
             # Critical for accurate MAWP calculations in fitness-for-service assessments
+            # Implementation: Add EquipmentDimensions.joint_efficiency field and lookup logic
+            # Priority: HIGH - production enhancement for calculation accuracy
         }
         
         # Calculate derived parameters

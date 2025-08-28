@@ -219,9 +219,12 @@ class HealthChecker:
             )
 
     # TODO: [MONITORING] Add comprehensive monitoring and alerting system
-    # - Integrate with Prometheus/Grafana for metrics collection and visualization
+    # - Integrate with Prometheus/Grafana for metrics collection and visualization  
     # - Add custom metrics for safety-critical calculation performance and accuracy
     # - Implement automated alerting for RSF < 0.9 and remaining life < 2 years
+    # Implementation: Add prometheus_client metrics collection in calculation services
+    # Alerting rules: RSF<0.9 → immediate page, remaining_life<2yrs → high priority
+    # Priority: MEDIUM - operations enhancement for proactive safety monitoring
     # - Add database query performance monitoring with slow query alerts
     # - Implement service degradation detection and automatic failover mechanisms
     

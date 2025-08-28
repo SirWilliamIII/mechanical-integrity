@@ -30,8 +30,9 @@ except ImportError:
     Base = MockBase()
     
     def get_db():
-        # Mock database dependency for tests that cannot connect to real DB
-        # Note: Use proper test database fixtures for integration tests requiring DB
+        # Emergency fallback mock when imports fail - not recommended for actual testing
+        # Proper test database fixtures are implemented below: test_db() and client() 
+        # Use those fixtures for all real tests requiring database access
         engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(engine)
         TestSession = sessionmaker(bind=engine)
@@ -147,6 +148,7 @@ def sample_inspection(test_db, sample_equipment):
         min_thickness_found=Decimal("1.238"),
         avg_thickness=Decimal("1.241"),
         confidence_level=Decimal("95.0"),  # Statistical confidence level required for all inspections
+        measurement_confidence=Decimal("90.0"),  # Measurement accuracy confidence - calculated dynamically in production
         verified_by=None,  # Not yet verified
         verified_at=None
     )
@@ -193,6 +195,7 @@ def multiple_inspections(test_db, sample_equipment):
             min_thickness_found=Decimal(str(thickness_set["min"])),
             avg_thickness=Decimal(str(thickness_set["avg"])),
             confidence_level=Decimal("95.0"),  # Statistical confidence level for trend analysis
+            measurement_confidence=Decimal("88.0"),  # Measurement confidence - calculated dynamically in production
             verified_by="Jane Smith" if i < 2 else None,
             verified_at=datetime(2024, 8, 20) if i < 2 else None
         )

@@ -47,7 +47,10 @@ class EquipmentBase(BaseModel):
         return v
     
     # TODO: [VALIDATION] Add comprehensive material-pressure-temperature validation
-    # Cross-reference material specs with ASME pressure-temperature rating charts
+    # Cross-reference material specs with ASME pressure-temperature rating charts  
+    # Implementation: Validate design_pressure + design_temperature against ASME B31.3 Table A-1
+    # Example: SA-516-70 at 400°F max allowable = 20,000 psi, validate design_pressure <= limit
+    # Priority: HIGH - regulatory compliance for equipment design validation
     # TODO: [INTEGRATION] Add CMMS system integration for work order generation
     # Gap: No automatic work order creation when RSF < 0.9 or remaining life < 2 years
     # Systems: SAP PM, Maximo, Maintenance Connection integration via REST APIs
