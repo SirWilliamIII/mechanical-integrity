@@ -51,7 +51,6 @@
             v-model="slotProps.data.cml_number"
             placeholder="e.g., CML-01"
             :class="getReadingFieldClass(slotProps.index, 'cml_number')"
-            @input="handleReadingChange(slotProps.index, 'cml_number')"
             @blur="validateReading(slotProps.index, 'cml_number')"
           />
           <small 
@@ -69,7 +68,6 @@
             v-model="slotProps.data.location_description"
             placeholder="Detailed location description"
             :class="getReadingFieldClass(slotProps.index, 'location_description')"
-            @input="handleReadingChange(slotProps.index, 'location_description')"
             @blur="validateReading(slotProps.index, 'location_description')"
           />
           <small 
@@ -92,7 +90,6 @@
             :step="0.001"
             placeholder="0.000"
             :class="getReadingFieldClass(slotProps.index, 'thickness_measured')"
-            @input="handleReadingChange(slotProps.index, 'thickness_measured')"
             @blur="validateReading(slotProps.index, 'thickness_measured')"
           />
           <small 
@@ -115,7 +112,6 @@
             :step="0.001"
             placeholder="0.000"
             :class="getReadingFieldClass(slotProps.index, 'design_thickness')"
-            @input="handleReadingChange(slotProps.index, 'design_thickness')"
             @blur="validateReading(slotProps.index, 'design_thickness')"
           />
           <small 
@@ -138,7 +134,6 @@
             :step="0.001"
             placeholder="0.000 (optional)"
             :class="getReadingFieldClass(slotProps.index, 'previous_thickness')"
-            @input="handleReadingChange(slotProps.index, 'previous_thickness')"
             @blur="validateReading(slotProps.index, 'previous_thickness')"
           />
         </template>
@@ -150,7 +145,6 @@
             v-model="slotProps.data.grid_reference"
             placeholder="e.g., A-1"
             :class="getReadingFieldClass(slotProps.index, 'grid_reference')"
-            @input="handleReadingChange(slotProps.index, 'grid_reference')"
             @blur="validateReading(slotProps.index, 'grid_reference')"
           />
         </template>
@@ -158,14 +152,13 @@
 
       <Column field="surface_condition" header="Surface Condition" style="min-width: 150px">
         <template #body="slotProps">
-          <Dropdown
+          <Select
             v-model="slotProps.data.surface_condition"
             :options="surfaceConditionOptions"
-            option-label="label"
-            option-value="value"
+            optionLabel="label"
+            optionValue="value"
             placeholder="Select condition"
             :class="getReadingFieldClass(slotProps.index, 'surface_condition')"
-            @change="handleReadingChange(slotProps.index, 'surface_condition')"
           />
         </template>
       </Column>
@@ -260,7 +253,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
-import Dropdown from 'primevue/dropdown'
+import Select from 'primevue/select'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import Card from 'primevue/card'

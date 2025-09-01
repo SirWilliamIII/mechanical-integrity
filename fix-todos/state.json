@@ -2,10 +2,10 @@
   "session_id": "fix-todos-2024-08-23",
   "started": "2024-08-23",
   "total_todos": 31,
-  "completed": 5,
+  "completed": 7,
   "current_priority": 2,
-  "current_todo": 6,
-  "last_updated": "2024-08-23",
+  "current_todo": 8,
+  "last_updated": "2024-08-28",
   "todos": [
     {
       "id": 1,
@@ -136,7 +136,34 @@
         "Resolved session sharing conflicts that caused test failures and production threading issues",
         "Removed TODO comment indicating successful resolution of background task session isolation"
       ]
+    },
+    {
+      "id": 6,
+      "description": "Fix hardcoded confidence level in analysis service",
+      "file": "backend/app/services/analysis_service.py",
+      "completed_at": "2024-08-28",
+      "changes_made": [
+        "Added confidence level mapping from request strings to numeric values (conservative: 0.90, nominal: 0.95, optimistic: 0.99)",
+        "Replaced hardcoded confidence_level=0.95 with dynamic numeric_confidence from request",
+        "Updated statistical_confidence from hardcoded Decimal('0.950') to Decimal(str(numeric_confidence))",
+        "Maintained backward compatibility with default parameter in _calculate_confidence_intervals method",
+        "Implemented safety-critical confidence levels with conservative defaults for petroleum industry compliance"
+      ]
+    },
+    {
+      "id": 7,
+      "description": "Fix scoping issues with dynamic confidence level implementation",
+      "file": "backend/app/services/analysis_service.py",
+      "completed_at": "2024-08-28",
+      "changes_made": [
+        "Added numeric confidence mapping to _calculate_cml_corrosion_rates method",
+        "Updated _linear_regression_analysis to accept numeric_confidence parameter",
+        "Modified _perform_trend_analysis to receive and use numeric_confidence parameter",
+        "Fixed parameter passing chain from analyze_corrosion_rates through all calculation methods",
+        "Resolved 'name numeric_confidence is not defined' error in analysis service",
+        "Ensured consistent confidence level propagation throughout analysis workflow"
+      ]
     }
   ],
-  "session_notes": "Safety-critical petroleum industry system. Prioritizing production readiness and security issues first. Successfully completed 5 high-priority TODOs focusing on production safety, security, and session isolation."
+  "session_notes": "Safety-critical petroleum industry system. Prioritizing production readiness and security issues first. Successfully completed 7 high-priority TODOs focusing on production safety, security, session isolation, and dynamic confidence calculation with proper scoping."
 }

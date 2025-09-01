@@ -1,5 +1,5 @@
 # backend/scripts/init_db.py
-from app.models.database import Base, engine
+from models.database import Base, engine
 
 def init_database():
     """Initialize database tables"""

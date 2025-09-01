@@ -87,13 +87,13 @@
                 class="type-item"
               >
                 <div class="type-info">
-                  <div class="type-name">{{ formatEquipmentType(type.type) }}</div>
+                  <div class="type-name">{{ type.displayName }}</div>
                   <div class="type-count">{{ type.count }} units</div>
                 </div>
                 <div class="type-bar">
                   <div 
                     class="type-progress" 
-                    :style="{ width: `${(type.count / totalEquipment) * 100}%` }"
+                    :style="{ width: `${totalEquipment > 0 ? (type.count / totalEquipment) * 100 : 0}%` }"
                   ></div>
                 </div>
               </div>
@@ -185,15 +185,20 @@ const overdueInspections = computed(() => {
 })
 
 const equipmentByType = computed(() => {
-  const typeMap = new Map<EquipmentType, number>()
+  const typeMap = new Map<string, number>()
   
   equipmentData.value.forEach(equipment => {
-    const count = typeMap.get(equipment.equipment_type) || 0
-    typeMap.set(equipment.equipment_type, count + 1)
+    const equipmentType = equipment.equipment_type as string
+    const count = typeMap.get(equipmentType) || 0
+    typeMap.set(equipmentType, count + 1)
   })
   
   return Array.from(typeMap.entries())
-    .map(([type, count]) => ({ type, count }))
+    .map(([type, count]) => ({ 
+      type: type as EquipmentType, 
+      count,
+      displayName: formatEquipmentType(type as EquipmentType)
+    }))
     .sort((a, b) => b.count - a.count)
 })
 
@@ -222,12 +227,13 @@ async function loadEquipmentData() {
 }
 
 function formatEquipmentType(type: EquipmentType): string {
-  const typeMap: Record<EquipmentType, string> = {
-    [EquipmentType.PRESSURE_VESSEL]: 'Pressure Vessels',
-    [EquipmentType.STORAGE_TANK]: 'Storage Tanks',
-    [EquipmentType.HEAT_EXCHANGER]: 'Heat Exchangers',
-    [EquipmentType.PIPING_SYSTEM]: 'Piping Systems',
-    [EquipmentType.REACTOR]: 'Reactors'
+  const typeMap: Record<string, string> = {
+    'pressure_vessel': 'Pressure Vessels',
+    'storage_tank': 'Storage Tanks', 
+    'heat_exchanger': 'Heat Exchangers',
+    'piping_system': 'Piping Systems',
+    'piping': 'Piping Systems',
+    'reactor': 'Reactors'
   }
   return typeMap[type] || type
 }

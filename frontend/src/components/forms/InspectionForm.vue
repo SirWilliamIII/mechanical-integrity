@@ -144,7 +144,7 @@
           <!-- Thickness Readings -->
           <ThicknessReadingsTable
             v-model="formData.thickness_readings"
-            :validation="validation"
+            :validation="validations"
             @field-change="handleFieldChange"
           />
 

@@ -30,7 +30,7 @@ def test_api579_integration():
         equipment_data = {
             "tag_number": "V-101",
             "name": "Test Pressure Vessel for API 579",
-            "equipment_type": "VESSEL",
+            "equipment_type": "pressure_vessel",
             "design_pressure": 150.0,
             "design_temperature": 350.0,
             "material_specification": "SA-516-70",

@@ -23,7 +23,7 @@ class EquipmentBase(BaseModel):
     """Base equipment schema with safety-critical validations."""
     tag_number: str = Field(..., min_length=1, max_length=50, description="Equipment tag (unique identifier)")
     name: str = Field(..., min_length=1, max_length=200)
-    equipment_type: str = Field(..., pattern="^(VESSEL|TANK|PIPING)$")
+    equipment_type: str = Field(..., pattern="^(pressure_vessel|storage_tank|piping|heat_exchanger)$")
     
     # Design parameters - critical for calculations
     design_pressure: Decimal = Field(..., gt=0, le=10000, description="Design pressure in psi")
@@ -112,19 +112,9 @@ class EquipmentResponse(BaseModel):
     
     @classmethod
     def from_db_model(cls, db_equipment):
-        """Convert database model to API response, mapping fields properly."""
-        # Map equipment type back to API format
-        equipment_type_reverse_mapping = {
-            "pressure_vessel": "VESSEL",
-            "storage_tank": "TANK", 
-            "piping": "PIPING",
-            "heat_exchanger": "HEAT_EXCHANGER"
-        }
-        
-        api_equipment_type = equipment_type_reverse_mapping.get(
-            db_equipment.equipment_type, 
-            db_equipment.equipment_type
-        )
+        """Convert database model to API response, preserving safety-critical enum values."""
+        # Use database enum values directly - critical for API 579 calculation accuracy
+        api_equipment_type = db_equipment.equipment_type
         
         return cls(
             id=db_equipment.id,
@@ -196,21 +186,13 @@ async def create_equipment(
             detail=f"Equipment with tag '{equipment.tag_number}' already exists"
         )
     
-    # Create equipment - map API schema to database model
+    # Create equipment - use safety-critical enum values directly
     equipment_data = equipment.model_dump()
-    
-    # Map fields from API schema to database model fields
-    equipment_type_mapping = {
-        "VESSEL": "pressure_vessel",
-        "TANK": "storage_tank", 
-        "PIPING": "piping",
-        "HEAT_EXCHANGER": "heat_exchanger"
-    }
     
     db_data = {
         "tag_number": equipment_data["tag_number"],
         "description": equipment_data["name"],  # Map name to description
-        "equipment_type": equipment_type_mapping.get(equipment_data["equipment_type"], equipment_data["equipment_type"]),
+        "equipment_type": equipment_data["equipment_type"],  # Use enum value directly for API 579 accuracy
         "design_pressure": equipment_data["design_pressure"],
         "design_temperature": equipment_data["design_temperature"],
         "material_specification": equipment_data["material_specification"],
@@ -378,12 +360,14 @@ async def get_inspection_status(
         )
     
     # Calculate inspection intervals based on API standards
-    if equipment.equipment_type == "VESSEL":
+    if equipment.equipment_type == "pressure_vessel":
         max_interval_years = 10  # API 510
-    elif equipment.equipment_type == "TANK":
+    elif equipment.equipment_type == "storage_tank":
         max_interval_years = 20  # API 653
-    else:  # PIPING
+    elif equipment.equipment_type == "piping":
         max_interval_years = 5   # API 570
+    else:  # heat_exchanger or other
+        max_interval_years = 8   # TEMA/API 579
     
     # TODO: [FEATURE] Implement risk-based inspection interval calculation
     # Adjust intervals based on equipment criticality, corrosion rates, and service conditions
