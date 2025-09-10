@@ -294,8 +294,16 @@ const surfaceConditionOptions = [
   { label: 'Scaled', value: 'scaled' }
 ]
 
+// Track internal changes to prevent recursive updates
+const isInternalChange = ref(false)
+
 // Initialize readings from modelValue
 watch(() => props.modelValue, (newValue) => {
+  if (isInternalChange.value) {
+    isInternalChange.value = false
+    return
+  }
+  
   readings.value = newValue.map((reading, index) => ({
     ...reading,
     tempId: `reading-${index}-${Date.now()}`
@@ -304,6 +312,7 @@ watch(() => props.modelValue, (newValue) => {
 
 // Emit changes
 watch(readings, (newReadings) => {
+  isInternalChange.value = true
   const cleanReadings = newReadings.map(reading => {
     const { tempId, ...cleanReading } = reading
     return cleanReading
